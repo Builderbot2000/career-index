@@ -25,8 +25,10 @@ export const SELECTORS = {
   jobAge: '[data-test="job-age-label"]',
   salaryEstimate: '[data-test="detailSalary"]',
   compactStars: '[data-test="rating-info"]',
-  // Detail panel
+  // Detail panel (inline side panel on search page)
   jobDescriptionContent: '[data-test="jobDescriptionContent"]',
+  // Standalone job detail page selectors (differ from the inline panel)
+  jobDescriptionPage: '[class*="JobDetails_jobDescription"], [class*="jobDescriptionContent"], [id="JobDescriptionContainer"], [class*="desc"] .desc, .jobsearch-JobComponent-description',
   showMore: '[data-test="show-more"], button[class*="ShowMore"], [class*="jobDescriptionContent"] button',
   detailSalary: '[data-test="pay-range"]',
   detailSalaryAlt: '[data-test="salary-estimate"]',
@@ -345,8 +347,26 @@ export interface ParsedDetail {
 }
 
 export async function parseDetail(page: Page): Promise<ParsedDetail> {
-  const descEl = await page.$(SELECTORS.jobDescriptionContent)
-  const raw_text = descEl ? (await descEl.innerText()).trim() : null
+  // Try every known description selector; fall back to the largest text block.
+  const descSelectors = [
+    SELECTORS.jobDescriptionContent,
+    ...SELECTORS.jobDescriptionPage.split(',').map((s) => s.trim()),
+  ]
+  let raw_text: string | null = null
+  for (const sel of descSelectors) {
+    const el = await page.$(sel)
+    if (el) {
+      raw_text = (await el.innerText()).trim() || null
+      if (raw_text) break
+    }
+  }
+  // Last resort: dump all visible text on the page
+  if (!raw_text) {
+    raw_text = await page.evaluate(() => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return ((globalThis as any).document.body as any)?.innerText?.trim() ?? null
+    }).catch(() => null)
+  }
 
   const salaryEl =
     (await page.$(SELECTORS.detailSalary)) ??
@@ -396,7 +416,7 @@ function delay(ms: number): Promise<void> {
 
 export class GlassdoorAdapter extends BaseAdapter {
   override readonly id = 'glassdoor'
-  override readonly delayMs = 600
+  override readonly delayMs = 2500
   override readonly availableSignals = new Set(['recency', 'salary'])
 
   override async search(
@@ -490,6 +510,11 @@ export class GlassdoorAdapter extends BaseAdapter {
         }
 
         const jobUrl = cleanJobUrl(raw.href)
+        // Resolve the raw href to an absolute URL for navigation — preserves
+        // the jl= query param and TLD that Glassdoor requires to render the job.
+        const rawAbsoluteHref = raw.href.startsWith('http')
+          ? raw.href
+          : `https://www.glassdoor.com${raw.href}`
         const posted_at = parsePostedAt(raw.postedText)
 
         const { salary_min: cardSalaryMin, salary_max: cardSalaryMax } = parseSalary(raw.salaryText)
@@ -503,10 +528,17 @@ export class GlassdoorAdapter extends BaseAdapter {
         let raw_text: string | null = null
         try {
           const t0 = Date.now()
-          await detailPage.goto(jobUrl, { waitUntil: 'domcontentloaded', timeout: 8_000 })
+          await detailPage.goto(rawAbsoluteHref, {
+            waitUntil: 'domcontentloaded',
+            timeout: 8_000,
+            referer: searchPage.url(),
+          })
           console.log(`[glassdoor] [+${Date.now()-t0}ms] detail page loaded`)
 
-          await detailPage.waitForSelector(SELECTORS.jobDescriptionContent, { timeout: 3_000 })
+          await detailPage.waitForSelector(
+            `${SELECTORS.jobDescriptionContent}, ${SELECTORS.jobDescriptionPage}`,
+            { timeout: 3_000 },
+          )
           console.log(`[glassdoor] [+${Date.now()-t0}ms] description appeared`)
 
           const showMoreBtn = await detailPage.$(SELECTORS.showMore)
@@ -570,6 +602,11 @@ export class GlassdoorAdapter extends BaseAdapter {
 
         consecutiveFails = 0
         onPosting?.()
+
+        // Pause between detail page requests to avoid rate-limiting.
+        // Jitter spreads requests so they don't look metronomic.
+        const jitter = Math.floor(Math.random() * 1000)
+        await delay(this.delayMs + jitter)
       }
 
       // Check if there's a next page
@@ -577,7 +614,7 @@ export class GlassdoorAdapter extends BaseAdapter {
       const nextDisabled = await nextBtn.getAttribute('disabled').catch(() => 'true')
       if (nextDisabled !== null) break
 
-      await delay(1500) // brief pause before pagination
+      await delay(3000) // pause before loading next page
     }
 
     return results
