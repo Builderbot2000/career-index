@@ -5,7 +5,7 @@ import {
   parsePostedAt,
   parseSalary,
   parseRating,
-} from './glassdoor'
+} from './index'
 
 // ─── buildSearchUrl ───────────────────────────────────────────────────────────
 

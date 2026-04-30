@@ -1,7 +1,7 @@
 import fetch from 'node-fetch'
 import { load } from 'cheerio'
-import { BaseAdapter, type JobPosting, type SearchFilters } from './base'
-import { extractYoe, extractSeniority, extractTechStack } from './linkedin'
+import { BaseAdapter, type JobPosting, type SearchFilters } from '../base'
+import { extractYoe, extractSeniority, extractTechStack } from '../linkedin'
 
 const SOURCE = 'hnhiring'
 const SCRAPER_VERSION = 'hnhiring-adapter@1'
@@ -190,3 +190,5 @@ export class HNHiringAdapter extends BaseAdapter {
     return results
   }
 }
+
+export default HNHiringAdapter

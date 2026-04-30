@@ -32,13 +32,8 @@ import { tailorResume } from '../core/resume/agent'
 import { renderTex } from '../core/resume/renderer'
 import { compileTex, recompileFromSnapshot } from '../core/resume/compiler'
 import { pdfPathToUrl } from '../core/resume/previewer'
-import { chromium } from 'playwright'
-import { MockAdapter } from '../core/jobs/adapters/mock'
-import { LinkedInAdapter } from '../core/jobs/adapters/linkedin'
-import { IndeedAdapter } from '../core/jobs/adapters/indeed'
-import { GlassdoorAdapter } from '../core/jobs/adapters/glassdoor'
-import { HackerNewsAdapter } from '../core/jobs/adapters/hackernews'
-import { HNHiringAdapter } from '../core/jobs/adapters/hnhiring'
+import { loadAdapters, getUserAdapterDir } from '../core/jobs/pluginLoader'
+import type { BaseAdapter } from '../core/jobs/adapters/base'
 import { runScrape, commitScrape, discardScrape } from '../core/jobs/aggregator'
 import { getFilteredRankedPostings, getRankedPostings } from '../core/jobs/ranker'
 import { generateSearchTerms, generateSearchTermsFromProfile } from '../core/jobs/searchTermGen'
@@ -66,6 +61,9 @@ let currentFeatureLocks: FeatureLocks = {
   playwrightChromium: false,
   profileEmpty: false,
 }
+
+/** Populated in app.whenReady() by loadAdapters() before IPC handlers run. */
+let ALL_ADAPTERS: BaseAdapter[] = []
 
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -786,70 +784,30 @@ function registerIpcHandlers(): void {
 
   // ─── Jobs ─────────────────────────────────────────────────────────────────
 
-  function linkedInAvailable(): boolean {
-    try { return fs.existsSync(chromium.executablePath()) } catch { return false }
+  // Display metadata for well-known adapter IDs.
+  // User-dropped plugins with unknown IDs fall back to their id as name.
+  const ADAPTER_META: Record<string, { name: string; description: string }> = {
+    mock: { name: 'Mock Adapter', description: 'Returns hardcoded sample postings — for development and testing' },
+    linkedin: { name: 'LinkedIn', description: 'Scrapes LinkedIn public job search (no login required)' },
+    indeed: { name: 'Indeed', description: 'Scrapes Indeed public job search (no login required)' },
+    glassdoor: { name: 'Glassdoor', description: 'Scrapes Glassdoor job search, including salary estimates (no login required)' },
+    hackernews: { name: 'Hacker News Jobs', description: 'YC startup job feed from news.ycombinator.com/jobs (no login required)' },
+    hnhiring: { name: 'HN Hiring', description: 'Monthly "Who is Hiring?" posts formatted at hnhiring.com (no login required)' },
   }
 
-  function indeedAvailable(): boolean {
-    try { return fs.existsSync(chromium.executablePath()) } catch { return false }
-  }
+  ipcMain.handle('jobs:list-adapters', () =>
+    ALL_ADAPTERS.map((a) => ({
+      id: a.id,
+      name: ADAPTER_META[a.id]?.name ?? a.id,
+      description: ADAPTER_META[a.id]?.description ?? `Plugin adapter: ${a.id}`,
+      available: true,
+    })),
+  )
 
-  function glassdoorAvailable(): boolean {
-    try { return fs.existsSync(chromium.executablePath()) } catch { return false }
-  }
-
-  ipcMain.handle('jobs:list-adapters', () => [
-    {
-      id: 'mock',
-      name: 'Mock Adapter',
-      description: 'Returns hardcoded sample postings — for development and testing',
-      available: true,
-    },
-    {
-      id: 'linkedin',
-      name: 'LinkedIn',
-      description: 'Scrapes LinkedIn public job search (no login required)',
-      available: linkedInAvailable(),
-    },
-    {
-      id: 'indeed',
-      name: 'Indeed',
-      description: 'Scrapes Indeed public job search (no login required)',
-      available: indeedAvailable(),
-    },
-    {
-      id: 'glassdoor',
-      name: 'Glassdoor',
-      description: 'Scrapes Glassdoor job search, including salary estimates (no login required)',
-      available: glassdoorAvailable(),
-    },
-    {
-      id: 'hackernews',
-      name: 'Hacker News Jobs',
-      description: 'YC startup job feed from news.ycombinator.com/jobs (no login required)',
-      available: true,
-    },
-    {
-      id: 'hnhiring',
-      name: 'HN Hiring',
-      description: 'Monthly "Who is Hiring?" posts formatted at hnhiring.com (no login required)',
-      available: true,
-    },
-  ])
+  ipcMain.handle('adapters:get-plugin-dir', () => getUserAdapterDir(app.getPath('userData')))
 
   ipcMain.handle('jobs:run-scrape', async (_event, adapterIds?: string[]) => {
-    const all: InstanceType<typeof MockAdapter | typeof LinkedInAdapter | typeof IndeedAdapter | typeof GlassdoorAdapter | typeof HackerNewsAdapter | typeof HNHiringAdapter>[] = [new MockAdapter(), new HackerNewsAdapter(), new HNHiringAdapter()]
-    if (linkedInAvailable()) {
-      all.push(new LinkedInAdapter())
-    }
-    if (indeedAvailable()) {
-      all.push(new IndeedAdapter())
-    }
-    if (glassdoorAvailable()) {
-      all.push(new GlassdoorAdapter())
-    }
-    // HackerNewsAdapter is always available (no Playwright dependency)
-    const adapters = adapterIds ? all.filter((a) => adapterIds.includes(a.id)) : all
+    const adapters = adapterIds ? ALL_ADAPTERS.filter((a) => adapterIds.includes(a.id)) : ALL_ADAPTERS
     return runScrape(getDb(), adapters, (p) => {
       mainWindow?.webContents.send('jobs:adapter-progress', p)
     })
@@ -1074,6 +1032,12 @@ app.whenReady().then(async () => {
   })
 
   applyCSP()
+
+  // Load adapter plugins (built-in bundles + user-dropped) before registering
+  // IPC handlers so that jobs:list-adapters and jobs:run-scrape are ready.
+  ALL_ADAPTERS = loadAdapters(app.getAppPath(), app.getPath('userData'))
+  logger.info(`Loaded ${ALL_ADAPTERS.length} adapter(s): ${ALL_ADAPTERS.map((a) => a.id).join(', ')}`)
+
   registerIpcHandlers()
 
   // In test mode, override Claude-dependent IPC handlers with deterministic stubs.

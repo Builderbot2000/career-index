@@ -1,6 +1,6 @@
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright'
-import { BaseAdapter, type JobPosting, type SearchFilters } from './base'
-import { extractYoe, extractSeniority, extractTechStack, KNOWN_TECH } from './linkedin'
+import { BaseAdapter, type JobPosting, type SearchFilters } from '../base'
+import { extractYoe, extractSeniority, extractTechStack, KNOWN_TECH } from '../linkedin'
 
 export { KNOWN_TECH }
 
@@ -620,3 +620,5 @@ export class GlassdoorAdapter extends BaseAdapter {
     return results
   }
 }
+
+export default GlassdoorAdapter

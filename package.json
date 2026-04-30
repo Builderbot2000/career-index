@@ -6,9 +6,10 @@
   "main": "out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
-    "build": "electron-vite build",
+    "build": "electron-vite build && node scripts/build-adapters.mjs",
+    "build:adapters": "node scripts/build-adapters.mjs",
     "preview": "electron-vite preview",
-    "build:dist": "electron-vite build && electron-builder",
+    "build:dist": "electron-vite build && node scripts/build-adapters.mjs && electron-builder",
     "postinstall": "electron-rebuild -f -w better-sqlite3",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "test:unit": "vitest run",
@@ -95,6 +96,9 @@
         "deb"
       ],
       "category": "Office"
-    }
+    },
+    "asarUnpack": [
+      "out/adapters/**/*"
+    ]
   }
 }

@@ -1,7 +1,7 @@
 import fetch from 'node-fetch'
 import { load } from 'cheerio'
-import { BaseAdapter, type JobPosting, type SearchFilters } from './base'
-import { extractYoe, extractSeniority, extractTechStack } from './linkedin'
+import { BaseAdapter, type JobPosting, type SearchFilters } from '../base'
+import { extractYoe, extractSeniority, extractTechStack } from '../linkedin'
 
 const SOURCE = 'hackernews'
 const SCRAPER_VERSION = 'hackernews-adapter@1'
@@ -178,3 +178,5 @@ export class HackerNewsAdapter extends BaseAdapter {
     return results
   }
 }
+
+export default HackerNewsAdapter

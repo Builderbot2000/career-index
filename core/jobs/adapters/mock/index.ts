@@ -1,5 +1,5 @@
-import { BaseAdapter } from './base'
-import type { JobPosting, SearchFilters, Seniority } from './base'
+import { BaseAdapter } from '../base'
+import type { JobPosting, SearchFilters, Seniority } from '../base'
 
 const MOD_VERSION = '0.2.0-mock'
 const SOURCE = 'mock'
@@ -465,3 +465,5 @@ export class MockAdapter extends BaseAdapter {
     return results
   }
 }
+
+export default MockAdapter

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseFirstLine, recencyCutoffDate, buildListingUrl } from './hnhiring'
+import { parseFirstLine, recencyCutoffDate, buildListingUrl } from './index'
 
 // ─── buildListingUrl ──────────────────────────────────────────────────────────
 

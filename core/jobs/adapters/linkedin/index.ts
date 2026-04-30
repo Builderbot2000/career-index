@@ -1,5 +1,5 @@
 import { chromium, type Browser, type ElementHandle, type Page } from 'playwright'
-import { BaseAdapter, type JobPosting, type SearchFilters, type Seniority } from './base'
+import { BaseAdapter, type JobPosting, type SearchFilters, type Seniority } from '../base'
 
 const SOURCE = 'linkedin'
 const SCRAPER_VERSION = 'linkedin-adapter@1'
@@ -371,3 +371,5 @@ export class LinkedInAdapter extends BaseAdapter {
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
+
+export default LinkedInAdapter

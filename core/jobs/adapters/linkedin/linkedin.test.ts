@@ -7,7 +7,7 @@ import {
   extractYoe,
   extractSeniority,
   extractTechStack,
-} from './linkedin'
+} from './index'
 
 // ─── cleanJobUrl ──────────────────────────────────────────────────────────────
 

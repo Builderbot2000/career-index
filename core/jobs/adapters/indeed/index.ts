@@ -1,6 +1,6 @@
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright'
-import { BaseAdapter, type JobPosting, type SearchFilters } from './base'
-import { extractYoe, extractSeniority, extractTechStack } from './linkedin'
+import { BaseAdapter, type JobPosting, type SearchFilters } from '../base'
+import { extractYoe, extractSeniority, extractTechStack } from '../linkedin'
 
 const SOURCE = 'indeed'
 const SCRAPER_VERSION = 'indeed-adapter@1'
@@ -117,11 +117,12 @@ export async function extractCards(page: Page): Promise<ParsedCard[]> {
       'li:has(a[data-jk])',
     ]
 
-    let items: Element[] = []
+    let items: { querySelector: (s: string) => any; querySelectorAll: (s: string) => any }[] = []
     for (const sel of containerSelectors) {
       try {
-        const found = Array.from(document.querySelectorAll(sel))
-        if (found.length > 0) { items = found; break }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const found = Array.from((globalThis as any).document.querySelectorAll(sel))
+        if (found.length > 0) { items = found as typeof items; break }
       } catch { /* selector unsupported — try next */ }
     }
 
@@ -322,3 +323,5 @@ export class IndeedAdapter extends BaseAdapter {
     return results
   }
 }
+
+export default IndeedAdapter
