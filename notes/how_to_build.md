@@ -20,6 +20,9 @@ git push && git push --tags
 The Actions run will:
 1. Build the app and all adapter bundles on Linux and Windows
 2. Package with electron-builder
-3. Create (or update) a GitHub Release at that tag and attach the `.AppImage`, `.deb`, and `.exe` installer
+3. Upload the binaries as **workflow artifacts** (visible in the Actions run tab, available for download immediately)
+4. On tag pushes: also create a GitHub Release and attach the `.AppImage`, `.deb`, and `.exe` installer
+
+If the Release page only shows source code archives, check the Actions run tab — the binaries will be there as downloadable workflow artifacts (`dist-ubuntu-latest`, `dist-windows-latest`) even if Release publishing fails.
 
 The release starts as a **draft** if one already exists for that tag, or creates a new one. Publish it manually from the GitHub Releases page when ready.
