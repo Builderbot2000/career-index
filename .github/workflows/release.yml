@@ -68,7 +68,7 @@ jobs:
             dist/*.AppImage
             dist/*.deb
             dist/*.exe
-            dist/*.yml
+            dist/latest*.yml
           if-no-files-found: error
 
       - name: Publish to GitHub Release
@@ -79,5 +79,5 @@ jobs:
             dist/*.AppImage
             dist/*.deb
             dist/*.exe
-            dist/*.yml
+            dist/latest*.yml
           fail_on_unmatched_files: false
