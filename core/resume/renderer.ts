@@ -17,41 +17,41 @@ function getEnv(): nunjucks.Environment {
   return env
 }
 
-// Escape characters that are special in LaTeX.
+// Escape characters that are special in Typst markup mode.
 // Backslash must be replaced first to avoid double-escaping.
-function escapeLatex(s: string): string {
+function escapeTypst(s: string): string {
   return s
-    .replace(/\\/g, '\\textbackslash{}')
+    .replace(/\\/g, '\\\\')
     .replace(/#/g, '\\#')
-    .replace(/\$/g, '\\$')
-    .replace(/%/g, '\\%')
-    .replace(/&/g, '\\&')
+    .replace(/\[/g, '\\[')
+    .replace(/\]/g, '\\]')
+    .replace(/\*/g, '\\*')
     .replace(/_/g, '\\_')
-    .replace(/\{/g, '\\{')
-    .replace(/\}/g, '\\}')
-    .replace(/\^/g, '\\^{}')
-    .replace(/~/g, '\\~{}')
+    .replace(/\$/g, '\\$')
+    .replace(/@/g, '\\@')
+    .replace(/</g, '\\<')
+    .replace(/`/g, '\\`')
 }
 
 // Walk the data tree and escape every string leaf.
-function escapeData(value: unknown): unknown {
-  if (typeof value === 'string') return escapeLatex(value)
-  if (Array.isArray(value)) return value.map(escapeData)
+function escapeData(escapeFn: (s: string) => string, value: unknown): unknown {
+  if (typeof value === 'string') return escapeFn(value)
+  if (Array.isArray(value)) return value.map((v) => escapeData(escapeFn, v))
   if (value !== null && typeof value === 'object') {
     return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>).map(([k, v]) => [k, escapeData(v)]),
+      Object.entries(value as Record<string, unknown>).map(([k, v]) => [k, escapeData(escapeFn, v)]),
     )
   }
   return value
 }
 
-export function renderTex(
+export function renderTyp(
   templateName: string,
   data: ResumeData,
   outPath: string,
 ): void {
   const e = getEnv()
-  const tex = e.render(`${templateName}.tex.njk`, escapeData(data) as ResumeData)
+  const typ = e.render(`${templateName}.typ.njk`, escapeData(escapeTypst, data) as ResumeData)
   fs.mkdirSync(path.dirname(outPath), { recursive: true })
-  fs.writeFileSync(outPath, tex, 'utf-8')
+  fs.writeFileSync(outPath, typ, 'utf-8')
 }

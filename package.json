@@ -4,13 +4,15 @@
   "description": "Local-first job hunting desktop app",
   "author": "Kevin Tang <kevintang1118@outlook.com>",
   "main": "out/main/index.js",
+  "typstVersion": "0.14.2",
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build && node scripts/build-adapters.mjs",
     "build:adapters": "node scripts/build-adapters.mjs",
     "preview": "electron-vite preview",
     "build:dist": "electron-vite build && node scripts/build-adapters.mjs && electron-builder",
-    "postinstall": "electron-rebuild -f -w better-sqlite3",
+    "download:typst": "node scripts/download-typst.mjs",
+    "postinstall": "electron-rebuild -f -w better-sqlite3 && node scripts/download-typst.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "test:unit": "vitest run",
     "test:e2e": "npm run build && playwright test --config tests/playwright.config.ts",
@@ -70,6 +72,10 @@
     ],
     "mac": {
       "category": "public.app-category.productivity",
+      "extraResources": [
+        { "from": "bin/typst-darwin-x64", "to": "typst-darwin-x64" },
+        { "from": "bin/typst-darwin-arm64", "to": "typst-darwin-arm64" }
+      ],
       "target": [
         {
           "target": "dmg",
@@ -81,6 +87,9 @@
       ]
     },
     "win": {
+      "extraResources": [
+        { "from": "bin/typst-win32-x64.exe", "to": "typst.exe" }
+      ],
       "target": [
         {
           "target": "nsis",
@@ -97,6 +106,9 @@
       "createDesktopShortcut": true
     },
     "linux": {
+      "extraResources": [
+        { "from": "bin/typst-linux-x64", "to": "typst" }
+      ],
       "target": [
         "AppImage",
         "deb"

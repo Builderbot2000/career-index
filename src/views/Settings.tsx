@@ -98,7 +98,7 @@ export default function Settings({ featureLocks }: Props): React.ReactElement {
                 <h2>Feature Status</h2>
                 <LockRow label="Claude API key" locked={featureLocks.claudeApiKey} testId="settings-lock-claudeApiKey" />
                 <LockRow label="Claude connectivity" locked={featureLocks.claudeConnectivity} testId="settings-lock-claudeConnectivity" />
-                <LockRow label="xelatex" locked={featureLocks.xelatex} testId="settings-lock-xelatex" />
+                <LockRow label="Typst" locked={featureLocks.typst} testId="settings-lock-typst" />
                 <LockRow label="Playwright Chromium" locked={featureLocks.playwrightChromium} testId="settings-lock-playwrightChromium" />
                 <LockRow label="Profile has entries" locked={featureLocks.profileEmpty} testId="settings-lock-profileEmpty" />
             </div>
@@ -135,16 +135,6 @@ export default function Settings({ featureLocks }: Props): React.ReactElement {
             {/* Paths */}
             <div className="card">
                 <h2>Paths</h2>
-                <div className="form-row">
-                    <label>TeX binary path</label>
-                    <input
-                        type="text"
-                        value={settings.tex_binary_path ?? ''}
-                        placeholder="/usr/bin/xelatex"
-                        onChange={(e) => saveSetting('tex_binary_path', e.target.value || null)}
-                    />
-                    <div className="form-hint">Leave blank to auto-detect common locations.</div>
-                </div>
                 <div className="form-row">
                     <label>PDF export path</label>
                     <input

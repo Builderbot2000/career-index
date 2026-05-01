@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain, shell, dialog, session, protocol, net } from 'electron'
 import path from 'path'
 import fs from 'fs'
+import { execFileSync } from 'child_process'
 import { randomUUID } from 'crypto'
 import { initLogger, logger, setLogLevel, type LogLevel } from './logger'
 import { initConnectionManager, closeDb } from './connection-manager'
@@ -29,8 +30,8 @@ import {
 import { importProfileFromResumePdf } from '../core/profile/resumeImporter'
 import { CreateProfileEntrySchema, UpdateProfileEntrySchema } from '../core/profile/models'
 import { tailorResume } from '../core/resume/agent'
-import { renderTex } from '../core/resume/renderer'
-import { compileTex, recompileFromSnapshot } from '../core/resume/compiler'
+import { renderTyp } from '../core/resume/renderer'
+import { compileTyp, recompileFromSnapshot } from '../core/resume/compiler'
 import { pdfPathToUrl } from '../core/resume/previewer'
 import { loadAdapters, getUserAdapterDir } from '../core/jobs/pluginLoader'
 import type { BaseAdapter } from '../core/jobs/adapters/base'
@@ -57,9 +58,30 @@ let mainWindow: BrowserWindow | null = null
 let currentFeatureLocks: FeatureLocks = {
   claudeApiKey: false,
   claudeConnectivity: false,
-  xelatex: false,
+  typst: false,
   playwrightChromium: false,
   profileEmpty: false,
+}
+
+// ─── Typst binary resolution ──────────────────────────────────────────────────
+
+function resolveTypstBin(): string {
+  if (app.isPackaged) {
+    if (process.platform === 'darwin') {
+      return path.join(process.resourcesPath, `typst-darwin-${process.arch}`)
+    }
+    const ext = process.platform === 'win32' ? '.exe' : ''
+    return path.join(process.resourcesPath, `typst${ext}`)
+  }
+  // Dev: look in <project-root>/bin/
+  const name =
+    process.platform === 'win32'
+      ? 'typst-win32-x64.exe'
+      : `typst-${process.platform}-${process.arch}`
+  const devBin = path.join(__dirname, '..', '..', 'bin', name)
+  if (fs.existsSync(devBin)) return devBin
+  // Fallback for contributors with system-installed typst
+  return 'typst'
 }
 
 /** Populated in app.whenReady() by loadAdapters() before IPC handlers run. */
@@ -164,7 +186,7 @@ async function runStartupValidation(): Promise<{
   const featureLocks: FeatureLocks = {
     claudeApiKey: false,
     claudeConnectivity: false,
-    xelatex: false,
+    typst: false,
     playwrightChromium: false,
     profileEmpty: false,
   }
@@ -176,22 +198,22 @@ async function runStartupValidation(): Promise<{
     featureLocks.claudeApiKey = true
   }
 
-  // Feature lock: xelatex
+  // Feature lock: Typst binary
   try {
-    const settings = getSettings()
-    if (settings.tex_binary_path) {
-      featureLocks.xelatex = !fs.existsSync(settings.tex_binary_path)
+    const bin = resolveTypstBin()
+    if (bin === 'typst') {
+      // System-path fallback — probe it
+      try {
+        execFileSync('typst', ['--version'], { stdio: 'ignore', timeout: 3000 })
+        featureLocks.typst = false
+      } catch {
+        featureLocks.typst = true
+      }
     } else {
-      const candidates = [
-        '/usr/bin/xelatex',
-        '/usr/local/bin/xelatex',
-        'C:\\texlive\\2024\\bin\\windows\\xelatex.exe',
-        'C:\\Program Files\\MiKTeX\\miktex\\bin\\x64\\xelatex.exe',
-      ]
-      featureLocks.xelatex = !candidates.some((p) => fs.existsSync(p))
+      featureLocks.typst = !fs.existsSync(bin)
     }
   } catch {
-    featureLocks.xelatex = true
+    featureLocks.typst = true
   }
 
   // Feature lock: Playwright Chromium
@@ -210,11 +232,11 @@ async function runStartupValidation(): Promise<{
     featureLocks.profileEmpty = true
   }
 
-  // In test mode, unlock xelatex and profile locks (claudeApiKey is left real so
+  // In test mode, unlock typst and profile locks (claudeApiKey is left real so
   // the nav lock badge renders correctly in settings tests).
   if (process.env.CAREERAID_TEST === '1') {
     featureLocks.claudeConnectivity = false
-    featureLocks.xelatex = false
+    featureLocks.typst = false
     featureLocks.profileEmpty = false
   }
 
@@ -382,24 +404,8 @@ function registerIpcHandlers(): void {
       const entries = getAllEntries(getDb())
       if (entries.length === 0) throw new Error('Profile is empty — add entries first')
 
-      // Resolve xelatex early — before spending API tokens
-      const settings = getSettings()
-      const xelatexBin =
-        settings.tex_binary_path ??
-        [
-          '/usr/bin/xelatex',
-          '/usr/local/bin/xelatex',
-          'C:\\texlive\\2024\\bin\\windows\\xelatex.exe',
-          'C:\\Program Files\\MiKTeX\\miktex\\bin\\x64\\xelatex.exe',
-        ].find((p) => fs.existsSync(p)) ??
-        null
-
-      if (!xelatexBin) {
-        throw new Error(
-          'xelatex is not installed. Install TeX Live (Linux: sudo apt install texlive-xetex) ' +
-          'or set the binary path in Settings, then restart the app.',
-        )
-      }
+      // Resolve Typst binary early — before spending API tokens
+      const typstBin = resolveTypstBin()
 
       const resumeData = await tailorResume(
         key,
@@ -412,20 +418,20 @@ function registerIpcHandlers(): void {
 
       const applicationId = crypto.randomUUID()
       const userData = app.getPath('userData')
-      const texDir = path.join(userData, 'resumes', applicationId)
-      const texPath = path.join(texDir, 'resume.tex')
+      const typDir = path.join(userData, 'resumes', applicationId)
+      const typPath = path.join(typDir, 'resume.typ')
 
-      renderTex(templateName, resumeData, texPath)
+      renderTyp(templateName, resumeData, typPath)
 
-      const outcome = await compileTex(texPath, xelatexBin)
+      const outcome = await compileTyp(typPath, typstBin)
       if (!outcome.success) {
-        throw new Error(`xelatex compilation failed: ${outcome.errorLine}`)
+        throw new Error(`Typst compilation failed: ${outcome.errorLine}`)
       }
 
       const application: Application = {
         id: applicationId,
         posting_id: postingId ?? null,
-        tex_path: texPath,
+        tex_path: typPath,
         resume_json: JSON.stringify(resumeData),
         schema_version: 1,
         applied_at: null,
@@ -459,8 +465,8 @@ function registerIpcHandlers(): void {
     if (!fs.existsSync(templateDir)) return []
     return fs
       .readdirSync(templateDir)
-      .filter((f) => f.endsWith('.tex.njk'))
-      .map((f) => f.replace('.tex.njk', ''))
+      .filter((f) => f.endsWith('.typ.njk'))
+      .map((f) => f.replace('.typ.njk', ''))
   })
 
   ipcMain.handle('resume:recompile', async (_event, applicationId: string) => {
@@ -470,25 +476,25 @@ function registerIpcHandlers(): void {
 
     if (!row) throw new Error(`Application ${applicationId} not found`)
 
-    const settings = getSettings()
-    const xelatexBin =
-      settings.tex_binary_path ??
-      [
-        '/usr/bin/xelatex',
-        '/usr/local/bin/xelatex',
-        'C:\\texlive\\2024\\bin\\windows\\xelatex.exe',
-        'C:\\Program Files\\MiKTeX\\miktex\\bin\\x64\\xelatex.exe',
-      ].find((p) => fs.existsSync(p)) ??
-      'xelatex'
+    const typstBin = resolveTypstBin()
 
-    // Detect which template was used from stored tex path directory
-    const templateGuess = 'classic'
+    // Migrate legacy .tex paths: clean up old LaTeX artifacts and switch to .typ
+    let typPath = row.tex_path
+    if (typPath.endsWith('.tex')) {
+      for (const ext of ['.tex', '.aux', '.log', '.out']) {
+        try { fs.rmSync(typPath.replace(/\.tex$/, ext), { force: true }) } catch { /* ignore */ }
+      }
+      typPath = typPath.replace(/\.tex$/, '.typ')
+      getDb().prepare('UPDATE applications SET tex_path = ? WHERE id = ?').run(typPath, applicationId)
+    }
+
+    const templateName = 'classic'
 
     const outcome = await recompileFromSnapshot(
       row.resume_json,
-      templateGuess,
-      row.tex_path,
-      xelatexBin,
+      templateName,
+      typPath,
+      typstBin,
     )
 
     if (!outcome.success) {

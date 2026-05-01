@@ -1,0 +1,63 @@
+#set page(paper: "a4", margin: (top: 1.8cm, bottom: 1.8cm, left: 2cm, right: 2cm))
+#set text(font: "Libertinus Serif", size: 11pt)
+#set par(justify: false)
+#set list(indent: 1.5em, spacing: 1pt)
+
+#show heading.where(level: 1): it => [
+  #v(8pt, weak: true)
+  #block(below: 4pt, width: 100%)[
+    #text(size: 12pt, weight: "bold")[#it.body]
+    #v(2pt, weak: true)
+    #line(length: 100%, stroke: 0.5pt)
+  ]
+]
+
+= Profile
+{{ summary }}
+
+{% if experience and experience | length > 0 %}
+= Experience
+
+{% for job in experience %}
+*{{ job.role }}* #h(1fr) _{{ job.start_date }} -- {{ job.end_date }}_\
+_{{ job.company }}_
+
+{% for bullet in job.bullets %}
+- {{ bullet }}
+{% endfor %}
+{% if not loop.last %}
+#v(4pt)
+{% endif %}
+{% endfor %}
+{% endif %}
+{% if skills.languages or skills.frameworks or skills.tools %}
+= Skills
+
+{% if skills.languages %}
+*Languages:* {{ skills.languages | join(", ") }}\
+{% endif %}
+{% if skills.frameworks %}
+*Frameworks:* {{ skills.frameworks | join(", ") }}\
+{% endif %}
+{% if skills.tools %}
+*Tools:* {{ skills.tools | join(", ") }}
+{% endif %}
+{% endif %}
+{% if education and education | length > 0 %}
+= Education
+
+{% for edu in education %}
+*{{ edu.institution }}* #h(1fr) {{ edu.year }}\
+_{{ edu.degree }}_
+{% if not loop.last %}
+#v(4pt)
+{% endif %}
+{% endfor %}
+{% endif %}
+{% if credentials and credentials | length > 0 %}
+= Credentials & Certifications
+
+{% for c in credentials %}
+- {{ c }}
+{% endfor %}
+{% endif %}

@@ -66,11 +66,11 @@ test.describe('Resume Module', () => {
   })
 
   test('compilation-locked message shows when PDF compiler is not found', async ({ page }) => {
-    // The CAREERAID_TEST environment means xelatex check may lock compilation.
-    // We verify the lock banner exists when xelatex is absent (common in CI).
+    // The CAREERAID_TEST environment means typst check may lock compilation.
+    // We verify the lock banner exists when typst is absent (common in CI).
     // This test is informational — it passes whether locked or not,
     // but asserts the lock UI exists as a concept in the app.
-    const lockBanner = page.getByText(/compiler not found|xelatex|PDF compiler.*locked/i)
+    const lockBanner = page.getByText(/compiler not found|typst|PDF compiler.*locked/i)
     const isVisible = await lockBanner.isVisible()
     // If lock is shown, it should be visible; if not shown, compilation must be available.
     if (isVisible) {

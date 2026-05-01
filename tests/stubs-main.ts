@@ -11,8 +11,8 @@ import fs from 'fs'
 import { getDb } from '../db/database'
 import { STUB_SEARCH_TERMS, STUB_RESUME_DATA, STUB_PDF_IMPORT_ENTRIES, stubAffinityScore } from '../tests/e2e/fixtures/claude-stubs'
 import type { SearchTerm } from '../src/shared/ipc-types'
-import { renderTex } from '../core/resume/renderer'
-import { compileTex } from '../core/resume/compiler'
+import { renderTyp } from '../core/resume/renderer'
+import { compileTyp } from '../core/resume/compiler'
 import { pdfPathToUrl } from '../core/resume/previewer'
 import { app } from 'electron'
 import { runScrape } from '../core/jobs/aggregator'
@@ -121,24 +121,24 @@ export function registerTestStubs(): void {
 
     const applicationId = randomUUID()
     const userData = app.getPath('userData')
-    const texDir = path.join(userData, 'resumes', applicationId)
-    const texPath = path.join(texDir, 'resume.tex')
+    const typDir = path.join(userData, 'resumes', applicationId)
+    const typPath = path.join(typDir, 'resume.typ')
 
-    renderTex(templateName ?? 'classic', STUB_RESUME_DATA as never, texPath)
+    renderTyp(templateName ?? 'classic', STUB_RESUME_DATA as never, typPath)
 
-    // Attempt real compilation; if xelatex absent, return a placeholder PDF URL
-    let pdfUrl = `file://${texPath.replace('.tex', '.pdf')}`
+    // Attempt real compilation; if typst absent, return a placeholder PDF URL
+    let pdfUrl = `file://${typPath.replace('.typ', '.pdf')}`
     try {
-      const outcome = await compileTex(texPath, 'xelatex')
+      const outcome = await compileTyp(typPath, 'typst')
       if (outcome.success) pdfUrl = pdfPathToUrl(outcome.pdfPath)
     } catch {
-      // xelatex not available in CI — return stub path; preview test checks iframe src
+      // typst not available in CI — return stub path; preview test checks iframe src
     }
 
     const application = {
       id: applicationId,
       posting_id: postingId ?? null,
-      tex_path: texPath,
+      tex_path: typPath,
       resume_json: JSON.stringify(STUB_RESUME_DATA),
       schema_version: 1,
       applied_at: new Date().toISOString(),

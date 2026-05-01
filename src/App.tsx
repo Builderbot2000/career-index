@@ -22,7 +22,7 @@ const NAV: NavItem[] = [
     { id: 'profile', label: 'Profile' },
     { id: 'search', label: 'Search' },
     { id: 'jobs', label: 'Jobs' },
-    { id: 'resume', label: 'Resume', lockedBy: ['xelatex', 'claudeApiKey', 'profileEmpty'] },
+    { id: 'resume', label: 'Resume', lockedBy: ['typst', 'claudeApiKey', 'profileEmpty'] },
     { id: 'tracker', label: 'Tracker' },
     { id: 'analytics', label: 'Analytics' },
     { id: 'settings', label: 'Settings' },
@@ -33,7 +33,7 @@ export default function App(): React.ReactElement {
     const [featureLocks, setFeatureLocks] = useState<FeatureLocks>({
         claudeApiKey: false,
         claudeConnectivity: false,
-        xelatex: false,
+        typst: false,
         playwrightChromium: false,
         profileEmpty: false,
     })

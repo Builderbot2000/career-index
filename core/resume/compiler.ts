@@ -1,7 +1,7 @@
 import { spawn } from 'child_process'
 import fs from 'fs'
 import path from 'path'
-import { renderTex } from './renderer'
+import { renderTyp } from './renderer'
 import { ResumeDataSchema, type ResumeData } from './validator'
 
 export interface CompileResult {
@@ -19,11 +19,12 @@ export type CompileOutcome = CompileResult | CompileError
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Extract the most actionable error line from xelatex stderr/stdout */
+/** Extract the most actionable error line from compiler stderr/stdout */
 function extractActionableError(log: string): string {
   const lines = log.split('\n')
-  // xelatex errors start with '!' or contain 'Error'
+  // Typst errors start with 'error:'; xelatex errors start with '!' or contain 'Error'
   const errorLine =
+    lines.find((l) => l.startsWith('error:')) ??
     lines.find((l) => l.startsWith('!')) ??
     lines.find((l) => /error/i.test(l)) ??
     lines.find((l) => l.trim().length > 0) ??
@@ -33,28 +34,21 @@ function extractActionableError(log: string): string {
 
 // ─── Compile ──────────────────────────────────────────────────────────────────
 
-export function compileTex(
-  texPath: string,
-  xelatexBin: string,
+export function compileTyp(
+  typPath: string,
+  typstBin: string,
 ): Promise<CompileOutcome> {
   return new Promise((resolve) => {
-    const dir = path.dirname(texPath)
-    const args = [
-      '--no-shell-escape',
-      '--interaction=nonstopmode',
-      '--output-directory',
-      dir,
-      texPath,
-    ]
+    const pdfPath = typPath.replace(/\.typ$/, '.pdf')
+    const args = ['compile', typPath, pdfPath]
 
     let output = ''
-    const proc = spawn(xelatexBin, args, { cwd: dir })
+    const proc = spawn(typstBin, args, { cwd: path.dirname(typPath) })
 
     proc.stdout.on('data', (d: Buffer) => { output += d.toString() })
     proc.stderr.on('data', (d: Buffer) => { output += d.toString() })
 
     proc.on('close', (code) => {
-      const pdfPath = texPath.replace(/\.tex$/, '.pdf')
       if (code === 0 && fs.existsSync(pdfPath)) {
         resolve({ success: true, pdfPath })
       } else {
@@ -79,14 +73,14 @@ export function compileTex(
 // ─── Recompile from snapshot ──────────────────────────────────────────────────
 
 /**
- * Regenerates the .tex file from the stored JSON snapshot and recompiles.
- * Used when the .tex file is missing (e.g. after reinstall).
+ * Regenerates the .typ file from the stored JSON snapshot and recompiles.
+ * Used when the .typ file is missing (e.g. after reinstall).
  */
 export async function recompileFromSnapshot(
   resumeJson: string,
   templateName: string,
-  texPath: string,
-  xelatexBin: string,
+  typPath: string,
+  typstBin: string,
 ): Promise<CompileOutcome> {
   const parsed = ResumeDataSchema.safeParse(JSON.parse(resumeJson))
   if (!parsed.success) {
@@ -96,6 +90,6 @@ export async function recompileFromSnapshot(
       fullLog: parsed.error.message,
     }
   }
-  renderTex(templateName, parsed.data as ResumeData, texPath)
-  return compileTex(texPath, xelatexBin)
+  renderTyp(templateName, parsed.data as ResumeData, typPath)
+  return compileTyp(typPath, typstBin)
 }

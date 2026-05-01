@@ -62,7 +62,6 @@ export function getSettings(): Settings {
 
 // Allowed column names are hardcoded to prevent any SQL injection via key.
 const ALLOWED_KEYS: ReadonlyArray<SettingKey> = [
-  'tex_binary_path',
   'pdf_export_path',
   'crawl_delay_ms',
   'posting_retention_days',

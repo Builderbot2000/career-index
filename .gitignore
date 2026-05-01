@@ -15,3 +15,6 @@ dev-app-update.yml
 # Build artifacts
 release/
 misc/
+
+# Bundled Typst binaries (downloaded via scripts/download-typst.mjs)
+bin/

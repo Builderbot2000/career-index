@@ -239,7 +239,6 @@ export interface LLMCostByType {
 // ─── Settings ─────────────────────────────────────────────────────────────────
 
 export interface Settings {
-  tex_binary_path: string | null
   pdf_export_path: string | null
   crawl_delay_ms: number
   posting_retention_days: number
@@ -257,8 +256,8 @@ export interface FeatureLocks {
   claudeApiKey: boolean
   /** True = API unreachable at startup → Claude features locked */
   claudeConnectivity: boolean
-  /** True = xelatex binary not found → resume compilation locked */
-  xelatex: boolean
+  /** True = Typst binary not found → resume compilation locked */
+  typst: boolean
   /** True = Playwright Chromium absent → Playwright scrapers locked */
   playwrightChromium: boolean
   /** True = no profile entries → resume tailoring locked */

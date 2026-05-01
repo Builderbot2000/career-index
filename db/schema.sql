@@ -13,7 +13,6 @@ CREATE TABLE IF NOT EXISTS _migrations (
 
 CREATE TABLE IF NOT EXISTS settings (
   id                           INTEGER PRIMARY KEY CHECK(id = 1),
-  tex_binary_path              TEXT,
   pdf_export_path              TEXT,
   crawl_delay_ms               INTEGER NOT NULL DEFAULT 3000,
   posting_retention_days       INTEGER NOT NULL DEFAULT 14,
