@@ -1,0 +1,560 @@
+import React, { useState, useEffect, useRef } from 'react'
+import type {
+    ScrapeSummary,
+    SearchTerm,
+    AdapterInfo,
+    AdapterProgress,
+    AddSearchTermData,
+    SearchTermSeniority,
+    WorkType,
+    Recency,
+} from '../../shared/ipc-types'
+import type { ScrapeState } from '../../App'
+import { ConditionChip } from '../../components/ConditionChip'
+import { AdapterStatusBadge } from '../../components/AdapterStatusBadge'
+import { LocationTagInput } from './LocationTagInput'
+
+export interface ScrapeProps {
+    scrapeState: ScrapeState
+    summary: ScrapeSummary | null
+    adapterProgress: Record<string, AdapterProgress>
+    errorMsg: string | null
+    committing: boolean
+    onRunScrape: (adapterIds: string[]) => void
+    onCommit: () => void
+    onDiscard: () => void
+}
+
+export function IntentTab({
+    scrapeState,
+    summary,
+    adapterProgress,
+    errorMsg,
+    committing,
+    onRunScrape,
+    onCommit,
+    onDiscard,
+}: ScrapeProps): React.ReactElement {
+    const [intent, setIntent] = useState('')
+    const [terms, setTerms] = useState<SearchTerm[]>([])
+    const [generating, setGenerating] = useState(false)
+    const [generateError, setGenerateError] = useState<string | null>(null)
+    const [adapters, setAdapters] = useState<AdapterInfo[]>([])
+    const [selectedAdapters, setSelectedAdapters] = useState<Set<string>>(new Set())
+
+    const emptyTermData: AddSearchTermData = { role: '', locations: null, seniorities: null, work_type: null, recency: null, max_results: null }
+    const [newTermData, setNewTermData] = useState<AddSearchTermData>(emptyTermData)
+    const [editingId, setEditingId] = useState<string | null>(null)
+    const intentRef = useRef(intent)
+    intentRef.current = intent
+
+    useEffect(() => {
+        window.api.getSearchConfig().then((cfg) => setIntent(cfg.intent ?? ''))
+        window.api.getSearchTerms().then(setTerms)
+        window.api.listAdapters().then((list) => {
+            setAdapters(list)
+            setSelectedAdapters(new Set(list.filter((a) => a.available && a.id !== 'mock').map((a) => a.id)))
+        })
+    }, [])
+
+    function handleIntentBlur(): void {
+        window.api.updateSearchConfig({ intent: intentRef.current || null }).catch(console.error)
+    }
+
+    async function handleGenerate(): Promise<void> {
+        setGenerating(true)
+        setGenerateError(null)
+        try {
+            const generated = await window.api.generateSearchTerms()
+            setTerms((prev) => [...prev, ...generated])
+        } catch (err) {
+            setGenerateError(err instanceof Error ? err.message : String(err))
+        } finally {
+            setGenerating(false)
+        }
+    }
+
+    async function handleGenerateFromProfile(): Promise<void> {
+        setGenerating(true)
+        setGenerateError(null)
+        try {
+            const generated = await window.api.generateSearchTermsFromProfile()
+            setTerms((prev) => [...prev, ...generated])
+        } catch (err) {
+            setGenerateError(err instanceof Error ? err.message : String(err))
+        } finally {
+            setGenerating(false)
+        }
+    }
+
+    async function handleToggle(id: string, enabled: boolean): Promise<void> {
+        setTerms((prev) => prev.map((t) => (t.id === id ? { ...t, enabled } : t)))
+        await window.api.updateSearchTerm(id, { enabled })
+    }
+
+    async function handleDelete(id: string): Promise<void> {
+        await window.api.deleteSearchTerm(id)
+        setTerms((prev) => prev.filter((t) => t.id !== id))
+    }
+
+    function openEdit(t: SearchTerm): void {
+        setEditingId(t.id)
+        setNewTermData({ role: t.term, locations: t.locations, seniorities: t.seniorities, work_type: t.work_type, recency: t.recency, max_results: t.max_results })
+    }
+
+    function cancelEdit(): void {
+        setEditingId(null)
+        setNewTermData(emptyTermData)
+    }
+
+    async function handleAddTerm(): Promise<void> {
+        if (!newTermData.role.trim()) return
+        if (editingId) {
+            await window.api.updateSearchTerm(editingId, {
+                term: newTermData.role,
+                locations: newTermData.locations,
+                seniorities: newTermData.seniorities,
+                work_type: newTermData.work_type,
+                recency: newTermData.recency,
+                max_results: newTermData.max_results,
+            })
+            setTerms((prev) =>
+                prev.map((t) =>
+                    t.id === editingId
+                        ? { ...t, term: newTermData.role, locations: newTermData.locations ?? null, seniorities: newTermData.seniorities ?? null, work_type: newTermData.work_type ?? null, recency: newTermData.recency ?? null, max_results: newTermData.max_results ?? null }
+                        : t
+                )
+            )
+            setEditingId(null)
+            setNewTermData(emptyTermData)
+        } else {
+            const added = await window.api.addSearchTerm(newTermData)
+            setTerms((prev) => [...prev, added])
+            setNewTermData(emptyTermData)
+        }
+    }
+
+    function handleRunScrape(): void {
+        onRunScrape(Array.from(selectedAdapters))
+    }
+
+    function handleCommit(): void {
+        onCommit()
+    }
+
+    function handleDiscard(): void {
+        onDiscard()
+    }
+
+    return (
+        <div>
+            {/* Intent */}
+            <section style={{ marginBottom: '28px' }}>
+                <label style={{ display: 'block', fontWeight: 600, marginBottom: '6px' }}>
+                    Search Intent
+                </label>
+                <p style={{ margin: '0 0 8px', fontSize: '0.85rem', color: '#6b7280' }}>
+                    Describe the role you're targeting. Used to generate search terms and rank results.
+                </p>
+                <textarea
+                    data-testid="search-intent-input"
+                    value={intent}
+                    onChange={(e) => setIntent(e.target.value)}
+                    onBlur={handleIntentBlur}
+                    placeholder="e.g. Senior backend engineer, fintech or B2B SaaS, remote, Go or TypeScript"
+                    rows={3}
+                    style={{
+                        display: 'block',
+                        width: '100%',
+                        boxSizing: 'border-box',
+                        fontFamily: 'inherit',
+                        fontSize: '0.875rem',
+                        padding: '8px',
+                        borderRadius: '4px',
+                        border: '1px solid #d1d5db',
+                        resize: 'vertical',
+                    }}
+                />
+            </section>
+
+            {/* Search Terms */}
+            <section style={{ marginBottom: '28px' }}>
+                <div
+                    style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginBottom: '10px',
+                    }}
+                >
+                    <h3 style={{ margin: 0, fontSize: '1rem' }}>Search Terms</h3>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                        <button
+                            data-testid="search-generate-btn"
+                            onClick={handleGenerate}
+                            disabled={generating}
+                            style={{ padding: '6px 14px', fontWeight: 600, cursor: 'pointer' }}
+                        >
+                            {generating ? 'Generating…' : 'Generate from Intent'}
+                        </button>
+                        <button
+                            data-testid="search-generate-from-profile-btn"
+                            onClick={handleGenerateFromProfile}
+                            disabled={generating}
+                            style={{ padding: '6px 14px', fontWeight: 600, cursor: 'pointer' }}
+                        >
+                            {generating ? 'Generating…' : 'Generate from Profile'}
+                        </button>
+                    </div>
+                </div>
+
+                {generateError && (
+                    <div style={{ marginBottom: '8px', color: 'crimson', fontSize: '0.85rem' }}>
+                        {generateError}
+                    </div>
+                )}
+
+                {terms.length === 0 ? (
+                    <p style={{ fontSize: '0.85rem', color: '#6b7280' }}>
+                        No terms yet. Generate some from your intent or add them manually.
+                    </p>
+                ) : (
+                    <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 12px' }}>
+                        {terms.map((t) => (
+                            <li
+                                key={t.id}
+                                data-testid={`search-term-item-${t.id}`}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'flex-start',
+                                    gap: '8px',
+                                    padding: '6px 0',
+                                    borderBottom: '1px solid #f3f4f6',
+                                }}
+                            >
+                                <input
+                                    data-testid={`search-term-toggle-${t.id}`}
+                                    type="checkbox"
+                                    checked={t.enabled}
+                                    style={{ marginTop: '2px' }}
+                                    onChange={(e) => handleToggle(t.id, e.target.checked)}
+                                />
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <span
+                                        style={{
+                                            fontSize: '0.875rem',
+                                            textDecoration: t.enabled ? 'none' : 'line-through',
+                                            color: t.enabled ? undefined : '#9ca3af',
+                                        }}
+                                    >
+                                        {t.term}
+                                    </span>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '4px' }}>
+                                        {t.locations?.map((loc) => <ConditionChip key={loc} label={loc} />)}
+                                        {t.seniorities?.map((s) => <ConditionChip key={s} label={s} />)}
+                                        {t.work_type?.map((w) => <ConditionChip key={w} label={w} color="#dbeafe" />)}
+                                        {t.recency && <ConditionChip label={{ day: 'past day', week: 'past week', month: 'past month' }[t.recency]} />}
+                                        {t.max_results != null && <ConditionChip label={`max ${t.max_results}`} />}
+                                    </div>
+                                </div>
+                                <span
+                                    style={{
+                                        fontSize: '0.7rem',
+                                        color: '#9ca3af',
+                                        background: '#f3f4f6',
+                                        padding: '1px 6px',
+                                        borderRadius: '999px',
+                                        whiteSpace: 'nowrap',
+                                        flexShrink: 0,
+                                    }}
+                                >
+                                    {t.source === 'llm_generated' ? 'AI' : 'manual'}
+                                </span>
+                                <button
+                                    data-testid={`search-term-edit-${t.id}`}
+                                    onClick={() => openEdit(t)}
+                                    style={{
+                                        background: 'none',
+                                        border: 'none',
+                                        cursor: 'pointer',
+                                        color: '#6b7280',
+                                        padding: '0 4px',
+                                        fontSize: '0.85rem',
+                                        flexShrink: 0,
+                                    }}
+                                    title="Edit"
+                                >
+                                    ✎
+                                </button>
+                                <button
+                                    data-testid={`search-term-delete-${t.id}`}
+                                    onClick={() => handleDelete(t.id)}
+                                    style={{
+                                        background: 'none',
+                                        border: 'none',
+                                        cursor: 'pointer',
+                                        color: '#6b7280',
+                                        padding: '0 4px',
+                                        fontSize: '0.85rem',
+                                        flexShrink: 0,
+                                    }}
+                                    title="Delete"
+                                >
+                                    ×
+                                </button>
+                            </li>
+                        ))}
+                    </ul>
+                )}
+
+                {/* Structured add form */}
+                <div style={{ border: '1px solid #e5e7eb', borderRadius: '8px', padding: '14px', background: '#f9fafb' }}>
+                    <p style={{ margin: '0 0 10px', fontSize: '0.8rem', fontWeight: 600, color: '#374151' }}>{editingId ? 'Edit term' : 'Add term manually'}</p>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
+                        <div>
+                            <label style={{ display: 'block', fontSize: '0.75rem', color: '#6b7280', marginBottom: '3px' }}>Role *</label>
+                            <input
+                                data-testid="search-add-role"
+                                value={newTermData.role}
+                                onChange={(e) => setNewTermData((p) => ({ ...p, role: e.target.value }))}
+                                onKeyDown={(e) => e.key === 'Enter' && handleAddTerm()}
+                                placeholder="e.g. senior backend engineer"
+                                style={{ width: '100%', boxSizing: 'border-box', padding: '5px 7px', fontSize: '0.875rem', border: '1px solid #d1d5db', borderRadius: '4px', fontFamily: 'inherit' }}
+                            />
+                        </div>
+                        <div>
+                            <label style={{ display: 'block', fontSize: '0.75rem', color: '#6b7280', marginBottom: '3px' }}>Recency</label>
+                            <select
+                                data-testid="search-add-recency"
+                                value={newTermData.recency ?? ''}
+                                onChange={(e) => setNewTermData((p) => ({ ...p, recency: (e.target.value || null) as Recency | null }))}
+                                style={{ width: '100%', boxSizing: 'border-box', padding: '5px 7px', fontSize: '0.875rem', border: '1px solid #d1d5db', borderRadius: '4px', fontFamily: 'inherit', background: 'white' }}
+                            >
+                                <option value="">Any time</option>
+                                <option value="day">Past day</option>
+                                <option value="week">Past week</option>
+                                <option value="month">Past month</option>
+                            </select>
+                        </div>
+                        <div style={{ gridColumn: '1 / -1' }}>
+                            <label style={{ display: 'block', fontSize: '0.75rem', color: '#6b7280', marginBottom: '3px' }}>Location(s)</label>
+                            <LocationTagInput
+                                values={newTermData.locations ?? []}
+                                onChange={(tags) => setNewTermData((p) => ({ ...p, locations: tags.length ? tags : null }))}
+                            />
+                        </div>
+                        <div>
+                            <label style={{ display: 'block', fontSize: '0.75rem', color: '#6b7280', marginBottom: '5px' }}>Seniority</label>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                {(['intern', 'junior', 'mid', 'senior', 'staff'] as SearchTermSeniority[]).map((level) => (
+                                    <label key={level} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.825rem', cursor: 'pointer' }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={(newTermData.seniorities ?? []).includes(level)}
+                                            onChange={(e) => {
+                                                setNewTermData((p) => {
+                                                    const cur = p.seniorities ?? []
+                                                    const next = e.target.checked ? [...cur, level] : cur.filter((s) => s !== level)
+                                                    return { ...p, seniorities: next.length ? next : null }
+                                                })
+                                            }}
+                                        />
+                                        {level.charAt(0).toUpperCase() + level.slice(1)}
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
+                        <div>
+                            <label style={{ display: 'block', fontSize: '0.75rem', color: '#6b7280', marginBottom: '5px' }}>Work Type</label>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                {(['remote', 'hybrid', 'onsite'] as WorkType[]).map((wt) => (
+                                    <label key={wt} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.825rem', cursor: 'pointer' }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={(newTermData.work_type ?? []).includes(wt)}
+                                            onChange={(e) => {
+                                                setNewTermData((p) => {
+                                                    const cur = p.work_type ?? []
+                                                    const next = e.target.checked ? [...cur, wt] : cur.filter((w) => w !== wt)
+                                                    return { ...p, work_type: next.length ? next : null }
+                                                })
+                                            }}
+                                        />
+                                        {wt.charAt(0).toUpperCase() + wt.slice(1)}
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
+                        <div>
+                            <label style={{ display: 'block', fontSize: '0.75rem', color: '#6b7280', marginBottom: '3px' }}>Max results</label>
+                            <input
+                                data-testid="search-add-max-results"
+                                type="number"
+                                min={1}
+                                value={newTermData.max_results ?? ''}
+                                onChange={(e) => setNewTermData((p) => ({ ...p, max_results: e.target.value ? parseInt(e.target.value, 10) : null }))}
+                                placeholder="75"
+                                style={{ width: '100%', boxSizing: 'border-box', padding: '5px 7px', fontSize: '0.875rem', border: '1px solid #d1d5db', borderRadius: '4px', fontFamily: 'inherit' }}
+                            />
+                        </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                        <button
+                            data-testid="search-add-btn"
+                            onClick={handleAddTerm}
+                            disabled={!newTermData.role.trim()}
+                            style={{ padding: '6px 16px', cursor: 'pointer', fontWeight: 600 }}
+                        >
+                            {editingId ? 'Save' : 'Add'}
+                        </button>
+                        {editingId && (
+                            <button
+                                data-testid="search-edit-cancel-btn"
+                                onClick={cancelEdit}
+                                style={{ padding: '6px 16px', cursor: 'pointer' }}
+                            >
+                                Cancel
+                            </button>
+                        )}
+                    </div>
+                </div>
+            </section>
+
+            {/* Adapter + scrape */}
+            <section>
+                <h3 style={{ marginTop: 0, marginBottom: '12px', fontSize: '1rem' }}>Run Scrape</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' }}>
+                    {adapters.map((adapter) => (
+                        <div
+                            key={adapter.id}
+                            style={{
+                                border: '1px solid #e5e7eb',
+                                borderRadius: '8px',
+                                padding: '12px 16px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '12px',
+                                opacity: adapter.available ? 1 : 0.5,
+                            }}
+                        >
+                            <input
+                                type="checkbox"
+                                checked={selectedAdapters.has(adapter.id)}
+                                disabled={
+                                    !adapter.available ||
+                                    scrapeState === 'running' ||
+                                    scrapeState === 'pending_commit'
+                                }
+                                onChange={(e) => {
+                                    setSelectedAdapters((prev) => {
+                                        const next = new Set(prev)
+                                        if (e.target.checked) next.add(adapter.id)
+                                        else next.delete(adapter.id)
+                                        return next
+                                    })
+                                }}
+                                style={{ cursor: adapter.available ? 'pointer' : 'not-allowed', flexShrink: 0 }}
+                            />
+                            <div style={{ flex: 1 }}>
+                                <div style={{ fontWeight: 600 }}>{adapter.name}</div>
+                                <div style={{ fontSize: '0.8rem', color: '#6b7280', marginTop: '2px' }}>
+                                    {adapter.description}
+                                </div>
+                            </div>
+                            <AdapterStatusBadge
+                                progress={adapterProgress[adapter.id]}
+                                available={adapter.available}
+                            />
+                        </div>
+                    ))}
+                </div>
+                <button
+                    data-testid="search-run-scrape-btn"
+                    onClick={handleRunScrape}
+                    disabled={
+                        scrapeState === 'running' ||
+                        scrapeState === 'pending_commit' ||
+                        selectedAdapters.size === 0
+                    }
+                    style={{ padding: '8px 16px', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                >
+                    {scrapeState === 'running' ? 'Running…' : 'Run Scrape'}
+                </button>
+
+                {scrapeState === 'error' && errorMsg && (
+                    <div data-testid="search-error" style={{ marginTop: '12px', color: 'crimson', fontSize: '0.85rem' }}>
+                        {errorMsg}
+                    </div>
+                )}
+
+                {scrapeState === 'pending_commit' && summary && (
+                    <div
+                        data-testid="search-summary"
+                        style={{
+                            marginTop: '16px',
+                            border: '1px solid #d1d5db',
+                            borderRadius: '8px',
+                            padding: '20px',
+                            background: '#f9fafb',
+                        }}
+                    >
+                        <h4 style={{ margin: '0 0 10px', fontSize: '0.95rem' }}>Scrape Complete</h4>
+                        <table style={{ borderCollapse: 'collapse', fontSize: '0.875rem', width: '100%' }}>
+                            <tbody>
+                                <tr>
+                                    <td style={{ padding: '3px 12px 3px 0', color: '#6b7280' }}>Fetched</td>
+                                    <td style={{ fontWeight: 600 }}>{summary.fetched}</td>
+                                </tr>
+                                <tr>
+                                    <td style={{ padding: '3px 12px 3px 0', color: '#6b7280' }}>Duplicates skipped</td>
+                                    <td>{summary.dupes}</td>
+                                </tr>
+                                {summary.ban_excluded > 0 && (
+                                    <tr>
+                                        <td style={{ padding: '3px 12px 3px 0', color: '#6b7280' }}>Ban list excluded</td>
+                                        <td>{summary.ban_excluded}</td>
+                                    </tr>
+                                )}
+                                {summary.keyword_filtered > 0 && (
+                                    <tr>
+                                        <td style={{ padding: '3px 12px 3px 0', color: '#6b7280' }}>Keyword filtered</td>
+                                        <td>{summary.keyword_filtered}</td>
+                                    </tr>
+                                )}
+                                <tr>
+                                    <td style={{ padding: '3px 12px 3px 0', color: '#6b7280' }}>Net new to commit</td>
+                                    <td
+                                        style={{
+                                            fontWeight: 600,
+                                            color: summary.netNew > 0 ? '#16a34a' : '#6b7280',
+                                        }}
+                                    >
+                                        {summary.netNew}
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <div style={{ marginTop: '14px', display: 'flex', gap: '8px' }}>
+                            <button
+                                data-testid="search-commit-btn"
+                                onClick={handleCommit}
+                                disabled={committing || summary.netNew === 0}
+                                style={{ padding: '8px 20px', fontWeight: 600, cursor: 'pointer' }}
+                            >
+                                {committing ? 'Committing…' : `Commit ${summary.netNew} postings`}
+                            </button>
+                            <button
+                                data-testid="search-discard-btn"
+                                onClick={handleDiscard}
+                                disabled={committing}
+                                style={{ padding: '8px 16px', cursor: 'pointer' }}
+                            >
+                                Discard
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </section>
+        </div>
+    )
+}

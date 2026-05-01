@@ -1,14 +1,17 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import type { JobPosting } from '../shared/ipc-types'
+import { StatusBadge } from '../components/StatusBadge'
+import { AffinityBadge } from '../components/AffinityBadge'
+import { Pagination } from '../components/Pagination'
 
 const PAGE_SIZE = 20
 
 const NEXT_STATUS: Partial<Record<JobPosting['status'], JobPosting['status']>> = {
-  new: 'viewed',
-  viewed: 'applied',
-  favorited: 'applied',
-  applied: 'interviewing',
-  interviewing: 'offer',
+    new: 'viewed',
+    viewed: 'applied',
+    favorited: 'applied',
+    applied: 'interviewing',
+    interviewing: 'offer',
 }
 
 interface JobBoardProps {
@@ -23,148 +26,6 @@ function formatPostedAt(posted_at: string | null, fetched_at: string): string {
     if (diffDays === 0) return 'today'
     if (diffDays === 1) return '1d ago'
     return `${diffDays}d ago`
-}
-
-function StatusBadge({ status }: { status: JobPosting['status'] }): React.ReactElement {
-    const colors: Record<string, string> = {
-        new: '#3b82f6',
-        viewed: '#6b7280',
-        favorited: '#f59e0b',
-        applied: '#8b5cf6',
-        interviewing: '#0891b2',
-        offer: '#16a34a',
-        rejected: '#dc2626',
-        ghosted: '#9ca3af',
-    }
-    return (
-        <span
-            style={{
-                display: 'inline-block',
-                padding: '2px 8px',
-                borderRadius: '999px',
-                fontSize: '0.72rem',
-                fontWeight: 600,
-                color: '#fff',
-                background: colors[status] ?? '#6b7280',
-                textTransform: 'capitalize',
-            }}
-        >
-            {status}
-        </span>
-    )
-}
-
-function AffinityBadge({
-    score,
-    skipped,
-}: {
-    score: number | null
-    skipped: boolean
-}): React.ReactElement {
-    if (skipped) {
-        return (
-            <span
-                style={{
-                    display: 'inline-block',
-                    padding: '2px 6px',
-                    borderRadius: '4px',
-                    fontSize: '0.72rem',
-                    background: '#f3f4f6',
-                    color: '#9ca3af',
-                }}
-                title="Affinity scoring skipped (below threshold)"
-            >
-                small batch
-            </span>
-        )
-    }
-    if (score === null) {
-        return (
-            <span
-                style={{
-                    display: 'inline-block',
-                    padding: '2px 6px',
-                    borderRadius: '4px',
-                    fontSize: '0.72rem',
-                    background: '#f3f4f6',
-                    color: '#9ca3af',
-                }}
-                title="Not yet scored"
-            >
-                ?
-            </span>
-        )
-    }
-    const pct = Math.round(score * 100)
-    const bg =
-        pct >= 75 ? '#dcfce7' : pct >= 50 ? '#fef9c3' : pct >= 25 ? '#ffedd5' : '#fee2e2'
-    const fg =
-        pct >= 75 ? '#166534' : pct >= 50 ? '#854d0e' : pct >= 25 ? '#9a3412' : '#991b1b'
-    return (
-        <span
-            style={{
-                display: 'inline-block',
-                padding: '2px 6px',
-                borderRadius: '4px',
-                fontSize: '0.72rem',
-                fontWeight: 700,
-                background: bg,
-                color: fg,
-            }}
-            title={`Affinity score: ${pct}%`}
-        >
-            {pct}%
-        </span>
-    )
-}
-
-function Pagination({
-    page,
-    totalPages,
-    onPage,
-}: {
-    page: number
-    totalPages: number
-    onPage: (p: number) => void
-}): React.ReactElement | null {
-    if (totalPages <= 1) return null
-    const pages = Array.from({ length: totalPages }, (_, i) => i + 1)
-    return (
-        <div style={{ display: 'flex', gap: '4px', marginTop: '16px', alignItems: 'center' }}>
-            <button
-                disabled={page === 1}
-                onClick={() => onPage(page - 1)}
-                style={{ padding: '4px 10px', cursor: 'pointer', fontSize: '0.85rem' }}
-            >
-                ‹
-            </button>
-            {pages.map((p) => (
-                <button
-                    key={p}
-                    onClick={() => onPage(p)}
-                    style={{
-                        padding: '4px 10px',
-                        cursor: 'pointer',
-                        fontSize: '0.85rem',
-                        fontWeight: p === page ? 700 : 400,
-                        background: p === page ? '#2563eb' : undefined,
-                        color: p === page ? 'white' : undefined,
-                        border: p === page ? '1px solid #2563eb' : '1px solid #d1d5db',
-                        borderRadius: '4px',
-                    }}
-                >
-                    {p}
-                </button>
-            ))}
-            <button
-                disabled={page === totalPages}
-                onClick={() => onPage(page + 1)}
-                style={{ padding: '4px 10px', cursor: 'pointer', fontSize: '0.85rem' }}
-            >
-                ›
-            </button>
-        </div>
-    )
 }
 
 export default function JobBoard({ onNavigateToResume }: JobBoardProps): React.ReactElement {
