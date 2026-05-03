@@ -7,6 +7,7 @@ const SCRAPER_VERSION = 'indeed-adapter@1'
 
 /** Indeed restricts search results to 1 page (~10 cards) without login. */
 const MAX_PAGES = 1
+const MAX_PAGES_LOGGED_IN = 10
 const PAGE_SIZE = 10
 
 /** Abort a search term after this many consecutive card-level parse failures. */
@@ -198,6 +199,26 @@ export class IndeedAdapter extends BaseAdapter {
   override readonly id = 'indeed'
   override readonly delayMs = 3000
   override readonly availableSignals = new Set(['recency'])
+  override readonly supportsLogin = true
+
+  private _sharedBrowser: Browser | undefined = undefined
+
+  override async beginLogin(): Promise<() => Promise<void>> {
+    const browser = await chromium.launch({
+      headless: false,
+      args: ['--disable-blink-features=AutomationControlled'],
+    })
+    this._sharedBrowser = browser
+    const page = await browser.newPage()
+    await page.goto('https://secure.indeed.com/auth', {
+      waitUntil: 'domcontentloaded',
+      timeout: 30_000,
+    }).catch(() => {})
+    return async () => {
+      this._sharedBrowser = undefined
+      await browser.close().catch(() => {})
+    }
+  }
 
   override async search(
     term: string,
@@ -206,14 +227,16 @@ export class IndeedAdapter extends BaseAdapter {
     onCaptchaRequired?: () => Promise<void>,
     signal?: CrawlSignal,
   ): Promise<void> {
-    const browser = await chromium.launch({
+    const loggedIn = this._sharedBrowser !== undefined
+    const browser = this._sharedBrowser ?? await chromium.launch({
       headless: false,
       args: ['--disable-blink-features=AutomationControlled'],
     })
+    const ownsBrowser = !loggedIn
     try {
-      await this._scrape(browser, term, filters, onPosting, onCaptchaRequired, signal)
+      await this._scrape(browser, term, filters, onPosting, onCaptchaRequired, signal, loggedIn)
     } finally {
-      await browser.close()
+      if (ownsBrowser) await browser.close()
     }
   }
 
@@ -224,6 +247,7 @@ export class IndeedAdapter extends BaseAdapter {
     onPosting?: (posting: Omit<JobPosting, 'id'>) => void,
     onCaptchaRequired?: () => Promise<void>,
     signal?: CrawlSignal,
+    loggedIn = false,
   ): Promise<void> {
     const context: BrowserContext = await browser.newContext({
       userAgent:
@@ -236,9 +260,10 @@ export class IndeedAdapter extends BaseAdapter {
     let consecutiveFails = 0
     let reportedCount = 0
     const now = new Date().toISOString()
+    const maxPages = loggedIn ? MAX_PAGES_LOGGED_IN : MAX_PAGES
     const pageLimit = filters.maxResults != null
-      ? Math.min(Math.ceil(filters.maxResults / PAGE_SIZE), MAX_PAGES)
-      : MAX_PAGES
+      ? Math.min(Math.ceil(filters.maxResults / PAGE_SIZE), maxPages)
+      : maxPages
 
     for (let pageNum = 0; pageNum < pageLimit; pageNum++) {
       await signal?.waitForResume()

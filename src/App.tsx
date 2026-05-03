@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import type { FeatureLocks, JobPosting, AdapterProgress, CaptchaRequest } from './shared/ipc-types'
+import type { FeatureLocks, JobPosting, AdapterProgress, CaptchaRequest, LoginRequest } from './shared/ipc-types'
 import Settings from './views/Settings'
 import Profile from './views/Profile'
 import SearchConfig from './views/SearchConfig'
@@ -43,6 +43,7 @@ export default function App(): React.ReactElement {
     const [adapterProgress, setAdapterProgress] = useState<Record<string, AdapterProgress>>({})
     const [scrapeError, setScrapeError] = useState<string | null>(null)
     const [captchaQueue, setCaptchaQueue] = useState<CaptchaRequest[]>([])
+    const [loginQueue, setLoginQueue] = useState<LoginRequest[]>([])
 
     useEffect(() => {
         window.api.onFeatureLocks((locks) => setFeatureLocks(locks))
@@ -52,14 +53,17 @@ export default function App(): React.ReactElement {
         window.api.onCaptchaRequired((req) => {
             setCaptchaQueue((q) => [...q, req])
         })
+        window.api.onLoginRequired((req) => {
+            setLoginQueue((q) => [...q, req])
+        })
     }, [])
 
-    async function runScrape(adapterIds: string[]): Promise<void> {
+    async function runScrape(adapterIds: string[], loginAdapterIds: string[]): Promise<void> {
         setScrapeState('running')
         setScrapeError(null)
         setAdapterProgress({})
         try {
-            await window.api.runScrape(adapterIds)
+            await window.api.runScrape(adapterIds, loginAdapterIds)
             setScrapeState('idle')
         } catch (err) {
             setScrapeError(err instanceof Error ? err.message : String(err))
@@ -85,6 +89,11 @@ export default function App(): React.ReactElement {
     async function resolveCaptcha(adapterId: string): Promise<void> {
         await window.api.resolveCaptcha(adapterId)
         setCaptchaQueue((q) => q.filter((r) => r.adapterId !== adapterId))
+    }
+
+    async function resolveLogin(adapterId: string): Promise<void> {
+        await window.api.resolveLogin(adapterId)
+        setLoginQueue((q) => q.filter((r) => r.adapterId !== adapterId))
     }
 
     function isLocked(item: NavItem): boolean {
@@ -133,11 +142,13 @@ export default function App(): React.ReactElement {
                         adapterProgress={adapterProgress}
                         errorMsg={scrapeError}
                         captchaQueue={captchaQueue}
-                        onRunScrape={(ids) => { runScrape(ids).catch(console.error) }}
+                        loginQueue={loginQueue}
+                        onRunScrape={(ids, loginIds) => { runScrape(ids, loginIds).catch(console.error) }}
                         onPause={() => { pauseScrape().catch(console.error) }}
                         onResume={() => { resumeScrape().catch(console.error) }}
                         onAbort={() => { abortScrape().catch(console.error) }}
                         onResolveCaptcha={(id) => { resolveCaptcha(id).catch(console.error) }}
+                        onResolveLogin={(id) => { resolveLogin(id).catch(console.error) }}
                     />
                 )}
                 {view === 'jobs' && <JobBoard onNavigateToResume={(posting) => {

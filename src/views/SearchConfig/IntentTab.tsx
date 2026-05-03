@@ -4,6 +4,7 @@ import type {
     AdapterInfo,
     AdapterProgress,
     CaptchaRequest,
+    LoginRequest,
     AddSearchTermData,
     SearchTermSeniority,
     WorkType,
@@ -19,11 +20,13 @@ export interface ScrapeProps {
     adapterProgress: Record<string, AdapterProgress>
     errorMsg: string | null
     captchaQueue: CaptchaRequest[]
-    onRunScrape: (adapterIds: string[]) => void
+    loginQueue: LoginRequest[]
+    onRunScrape: (adapterIds: string[], loginAdapterIds: string[]) => void
     onPause: () => void
     onResume: () => void
     onAbort: () => void
     onResolveCaptcha: (adapterId: string) => void
+    onResolveLogin: (adapterId: string) => void
 }
 
 export function IntentTab({
@@ -31,11 +34,13 @@ export function IntentTab({
     adapterProgress,
     errorMsg,
     captchaQueue,
+    loginQueue,
     onRunScrape,
     onPause,
     onResume,
     onAbort,
     onResolveCaptcha,
+    onResolveLogin,
 }: ScrapeProps): React.ReactElement {
     const [intent, setIntent] = useState('')
     const [terms, setTerms] = useState<SearchTerm[]>([])
@@ -43,6 +48,7 @@ export function IntentTab({
     const [generateError, setGenerateError] = useState<string | null>(null)
     const [adapters, setAdapters] = useState<AdapterInfo[]>([])
     const [selectedAdapters, setSelectedAdapters] = useState<Set<string>>(new Set())
+    const [loginAdapters, setLoginAdapters] = useState<Set<string>>(new Set())
 
     const emptyTermData: AddSearchTermData = { role: '', locations: null, seniorities: null, work_type: null, recency: null, max_results: null }
     const [newTermData, setNewTermData] = useState<AddSearchTermData>(emptyTermData)
@@ -137,7 +143,9 @@ export function IntentTab({
     }
 
     function handleRunScrape(): void {
-        onRunScrape(Array.from(selectedAdapters))
+        const adapterIds = Array.from(selectedAdapters)
+        const loginIds = Array.from(loginAdapters).filter((id) => selectedAdapters.has(id))
+        onRunScrape(adapterIds, loginIds)
     }
 
     return (
@@ -456,6 +464,31 @@ export function IntentTab({
                                     {adapter.description}
                                 </div>
                             </div>
+                            {adapter.supportsLogin && (
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.8rem', color: '#374151', cursor: 'pointer', flexShrink: 0 }}>
+                                    <input
+                                        data-testid={`adapter-login-${adapter.id}`}
+                                        type="checkbox"
+                                        checked={loginAdapters.has(adapter.id)}
+                                        disabled={
+                                            !adapter.available ||
+                                            !selectedAdapters.has(adapter.id) ||
+                                            scrapeState === 'running' ||
+                                            scrapeState === 'paused'
+                                        }
+                                        onChange={(e) => {
+                                            setLoginAdapters((prev) => {
+                                                const next = new Set(prev)
+                                                if (e.target.checked) next.add(adapter.id)
+                                                else next.delete(adapter.id)
+                                                return next
+                                            })
+                                        }}
+                                        style={{ cursor: 'inherit' }}
+                                    />
+                                    Login first
+                                </label>
+                            )}
                             <AdapterStatusBadge
                                 progress={adapterProgress[adapter.id]}
                                 available={adapter.available}
@@ -502,6 +535,47 @@ export function IntentTab({
                         >
                             Stop
                         </button>
+                    </div>
+                )}
+
+                {loginQueue.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px' }}>
+                        {loginQueue.map((req) => (
+                            <div
+                                key={req.adapterId}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '12px',
+                                    border: '1px solid #3b82f6',
+                                    borderRadius: '8px',
+                                    padding: '12px 16px',
+                                    background: '#eff6ff',
+                                    fontSize: '0.875rem',
+                                }}
+                            >
+                                <span style={{ flex: 1 }}>
+                                    Log in to <strong>{req.adapterName}</strong> in the browser window that opened,
+                                    then click <strong>Done</strong>.
+                                </span>
+                                <button
+                                    data-testid={`login-done-${req.adapterId}`}
+                                    onClick={() => onResolveLogin(req.adapterId)}
+                                    style={{
+                                        padding: '6px 14px',
+                                        fontWeight: 600,
+                                        cursor: 'pointer',
+                                        background: '#2563eb',
+                                        color: '#fff',
+                                        border: 'none',
+                                        borderRadius: '6px',
+                                        flexShrink: 0,
+                                    }}
+                                >
+                                    Done
+                                </button>
+                            </div>
+                        ))}
                     </div>
                 )}
 

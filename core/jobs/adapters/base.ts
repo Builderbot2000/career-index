@@ -124,6 +124,16 @@ export abstract class BaseAdapter {
   abstract readonly id: string
   readonly delayMs: number = 3000
   readonly availableSignals: Set<string> = new Set()
+  readonly supportsLogin: boolean = false
+
+  /**
+   * Opens a browser to the site's login page and stores it for reuse across
+   * search() calls. Returns a cleanup function that closes the browser.
+   * Only called when supportsLogin is true and the user opted in.
+   */
+  beginLogin(): Promise<() => Promise<void>> {
+    return Promise.resolve(async () => {})
+  }
 
   abstract search(
     term: string,

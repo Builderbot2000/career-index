@@ -168,6 +168,8 @@ export async function runScrape(
   onCaptchaRequired?: (adapterId: string) => Promise<void>,
   onPostingCommitted?: (p: JobPosting) => void,
   controller?: CrawlController,
+  loginAdapterIds?: string[],
+  onLoginRequired?: (adapterId: string) => Promise<void>,
 ): Promise<ScrapeSummary> {
   // Collect existing URLs and composite keys from DB for dedup
   const existingUrls = new Set<string>(
@@ -262,49 +264,59 @@ export async function runScrape(
 
   await Promise.allSettled(
     adapters.map(async (adapter) => {
-      onProgress?.({ adapterId: adapter.id, status: 'running', fetched: 0 })
-      let adapterFetched = 0
+      let loginCleanup: (() => Promise<void>) | undefined
+      try {
+        if (loginAdapterIds?.includes(adapter.id) && adapter.supportsLogin && onLoginRequired) {
+          loginCleanup = await adapter.beginLogin()
+          await onLoginRequired(adapter.id)
+        }
 
-      for (const run of expandedRuns) {
-        const filters: SearchFilters = {}
-        if (run.location) filters.location = run.location
-        if (run.seniorities) filters.seniorities = run.seniorities
-        if (run.workTypes) filters.workTypes = run.workTypes
-        if (run.recency) filters.recency = run.recency
-        if (run.maxResults != null) filters.maxResults = run.maxResults
+        onProgress?.({ adapterId: adapter.id, status: 'running', fetched: 0 })
+        let adapterFetched = 0
 
-        try {
-          await adapter.search(
-            run.term,
-            filters,
-            (posting) => {
-              adapterFetched++
-              onProgress?.({ adapterId: adapter.id, status: 'running', fetched: adapterFetched })
-              const committed = processPosting(
-                db, insert, posting,
-                existingUrls, existingComposites,
-                banConfig, keywordConfig, counters,
-              )
-              if (committed) onPostingCommitted?.(committed)
-            },
-            onCaptchaRequired ? () => onCaptchaRequired(adapter.id) : undefined,
-            controller?.signal,
-          )
-        } catch (err) {
-          if (err instanceof Error && err.message === 'crawl_aborted') {
-            onProgress?.({ adapterId: adapter.id, status: 'done', fetched: adapterFetched })
+        for (const run of expandedRuns) {
+          const filters: SearchFilters = {}
+          if (run.location) filters.location = run.location
+          if (run.seniorities) filters.seniorities = run.seniorities
+          if (run.workTypes) filters.workTypes = run.workTypes
+          if (run.recency) filters.recency = run.recency
+          if (run.maxResults != null) filters.maxResults = run.maxResults
+
+          try {
+            await adapter.search(
+              run.term,
+              filters,
+              (posting) => {
+                adapterFetched++
+                onProgress?.({ adapterId: adapter.id, status: 'running', fetched: adapterFetched })
+                const committed = processPosting(
+                  db, insert, posting,
+                  existingUrls, existingComposites,
+                  banConfig, keywordConfig, counters,
+                )
+                if (committed) onPostingCommitted?.(committed)
+              },
+              onCaptchaRequired ? () => onCaptchaRequired(adapter.id) : undefined,
+              controller?.signal,
+            )
+          } catch (err) {
+            if (err instanceof Error && err.message === 'crawl_aborted') {
+              onProgress?.({ adapterId: adapter.id, status: 'done', fetched: adapterFetched })
+              return
+            }
+            onProgress?.({
+              adapterId: adapter.id,
+              status: 'error',
+              error: err instanceof Error ? err.message : String(err),
+            })
             return
           }
-          onProgress?.({
-            adapterId: adapter.id,
-            status: 'error',
-            error: err instanceof Error ? err.message : String(err),
-          })
-          return
         }
-      }
 
-      onProgress?.({ adapterId: adapter.id, status: 'done', fetched: adapterFetched })
+        onProgress?.({ adapterId: adapter.id, status: 'done', fetched: adapterFetched })
+      } finally {
+        await loginCleanup?.()
+      }
     }),
   )
 

@@ -143,6 +143,7 @@ export interface AdapterInfo {
   name: string
   description: string
   available: boolean
+  supportsLogin: boolean
 }
 
 export interface AdapterProgress {
@@ -153,6 +154,11 @@ export interface AdapterProgress {
 }
 
 export interface CaptchaRequest {
+  adapterId: string
+  adapterName: string
+}
+
+export interface LoginRequest {
   adapterId: string
   adapterName: string
 }
@@ -334,7 +340,7 @@ export interface ElectronAPI {
 
   // Jobs
   listAdapters(): Promise<AdapterInfo[]>
-  runScrape(adapterIds?: string[]): Promise<ScrapeSummary>
+  runScrape(adapterIds?: string[], loginAdapterIds?: string[]): Promise<ScrapeSummary>
   pauseScrape(): Promise<void>
   resumeScrape(): Promise<void>
   abortScrape(): Promise<void>
@@ -366,4 +372,6 @@ export interface ElectronAPI {
   onAdapterProgress(cb: (p: AdapterProgress) => void): void
   onCaptchaRequired(cb: (req: CaptchaRequest) => void): void
   resolveCaptcha(adapterId: string): Promise<void>
+  onLoginRequired(cb: (req: LoginRequest) => void): void
+  resolveLogin(adapterId: string): Promise<void>
 }

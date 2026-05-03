@@ -14,6 +14,7 @@ import type {
   JobPosting,
   AdapterProgress,
   CaptchaRequest,
+  LoginRequest,
   ProfileEntry,
   WorkType,
   SearchTermSeniority,
@@ -182,8 +183,8 @@ contextBridge.exposeInMainWorld('api', {
     return ipcRenderer.invoke('jobs:list-adapters')
   },
 
-  runScrape(adapterIds?: string[]) {
-    return ipcRenderer.invoke('jobs:run-scrape', adapterIds)
+  runScrape(adapterIds?: string[], loginAdapterIds?: string[]) {
+    return ipcRenderer.invoke('jobs:run-scrape', adapterIds, loginAdapterIds)
   },
 
   pauseScrape(): Promise<void> {
@@ -282,5 +283,13 @@ contextBridge.exposeInMainWorld('api', {
 
   resolveCaptcha(adapterId: string): Promise<void> {
     return ipcRenderer.invoke('jobs:captcha-resolved', adapterId)
+  },
+
+  onLoginRequired(cb: (req: LoginRequest) => void): void {
+    ipcRenderer.on('jobs:login-required', (_event, req: LoginRequest) => cb(req))
+  },
+
+  resolveLogin(adapterId: string): Promise<void> {
+    return ipcRenderer.invoke('jobs:login-resolved', adapterId)
   },
 } satisfies ElectronAPI)

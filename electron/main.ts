@@ -100,6 +100,12 @@ let activeCrawlController: CrawlController | null = null
  */
 const captchaResolvers = new Map<string, () => void>()
 
+/**
+ * Resolvers for in-progress login pauses, keyed by adapter ID.
+ * When the renderer calls jobs:login-resolved, the matching promise unblocks.
+ */
+const loginResolvers = new Map<string, () => void>()
+
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
     width: 1280,
@@ -820,12 +826,13 @@ function registerIpcHandlers(): void {
       name: ADAPTER_META[a.id]?.name ?? a.id,
       description: ADAPTER_META[a.id]?.description ?? `Plugin adapter: ${a.id}`,
       available: true,
+      supportsLogin: a.supportsLogin,
     })),
   )
 
   ipcMain.handle('adapters:get-plugin-dir', () => getUserAdapterDir(app.getPath('userData')))
 
-  ipcMain.handle('jobs:run-scrape', async (_event, adapterIds?: string[]) => {
+  ipcMain.handle('jobs:run-scrape', async (_event, adapterIds?: string[], loginAdapterIds?: string[]) => {
     const adapters = adapterIds ? ALL_ADAPTERS.filter((a) => adapterIds.includes(a.id)) : ALL_ADAPTERS
     const controller = createCrawlController()
     activeCrawlController = controller
@@ -843,6 +850,14 @@ function registerIpcHandlers(): void {
         },
         (posting) => { mainWindow?.webContents.send('jobs:posting-committed', posting) },
         controller,
+        loginAdapterIds,
+        (adapterId) => {
+          const adapterName = ADAPTER_META[adapterId]?.name ?? adapterId
+          mainWindow?.webContents.send('jobs:login-required', { adapterId, adapterName })
+          return new Promise<void>((resolve) => {
+            loginResolvers.set(adapterId, resolve)
+          })
+        },
       )
       logger.info('Scrape complete', summary)
       mainWindow?.webContents.send('jobs:scrape-committed')
@@ -863,6 +878,11 @@ function registerIpcHandlers(): void {
   ipcMain.handle('jobs:captcha-resolved', (_event, adapterId: string) => {
     captchaResolvers.get(adapterId)?.()
     captchaResolvers.delete(adapterId)
+  })
+
+  ipcMain.handle('jobs:login-resolved', (_event, adapterId: string) => {
+    loginResolvers.get(adapterId)?.()
+    loginResolvers.delete(adapterId)
   })
 
   ipcMain.handle('jobs:pause-scrape', () => {
