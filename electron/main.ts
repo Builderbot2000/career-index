@@ -246,7 +246,8 @@ async function runStartupValidation(): Promise<{
     const { registry } = require('playwright-core/lib/server/registry/index') as {
       registry: { findExecutable(n: string): { executablePath(): string | undefined } | undefined }
     }
-    featureLocks.playwrightChromium = !registry.findExecutable('chromium')?.executablePath()
+    const chromiumPath = registry.findExecutable('chromium')?.executablePath()
+    featureLocks.playwrightChromium = !chromiumPath || !require('fs').existsSync(chromiumPath)
   } catch {
     featureLocks.playwrightChromium = true
   }
