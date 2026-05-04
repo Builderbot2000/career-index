@@ -269,6 +269,12 @@ contextBridge.exposeInMainWorld('api', {
     return () => ipcRenderer.removeListener('jobs:posting-committed', handler)
   },
 
+  onPostingScored(cb: (posting: JobPosting) => void): (() => void) {
+    const handler = (_event: Electron.IpcRendererEvent, posting: JobPosting) => cb(posting)
+    ipcRenderer.on('jobs:posting-scored', handler)
+    return () => ipcRenderer.removeListener('jobs:posting-scored', handler)
+  },
+
   onAffinityUpdated(cb: (postings: JobPosting[]) => void): void {
     ipcRenderer.on('jobs:affinity-updated', (_event, postings: JobPosting[]) => cb(postings))
   },

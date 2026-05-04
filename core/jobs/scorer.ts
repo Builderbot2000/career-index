@@ -99,7 +99,7 @@ nice_to_haves_class:
 
 // ─── Concurrency limiter ──────────────────────────────────────────────────────
 
-function makeSemaphore(concurrency: number) {
+export function makeSemaphore(concurrency: number) {
   let running = 0
   const queue: Array<() => void> = []
 
@@ -238,4 +238,76 @@ export async function scorePostings(
   }
 
   await Promise.all(candidates.map((p) => limit(() => scoreOne(p))))
+}
+
+export async function scorePosting(
+  db: Database.Database,
+  apiKey: string,
+  posting: JobPosting,
+): Promise<JobPosting> {
+  const intent =
+    (db.prepare('SELECT intent FROM search_config WHERE id = 1').get() as { intent: string | null })
+      ?.intent ?? ''
+  const serializedProfile = serializeProfile(getAllEntries(db))
+  const client = new Anthropic({ apiKey })
+  const now = new Date().toISOString()
+
+  const updatePosting = db.prepare(
+    `UPDATE job_postings
+     SET affinity_score      = @score,
+         affinity_scored_at  = @scored_at,
+         affinity_skipped    = 0,
+         affinity_reasoning  = @reasoning,
+         hard_reqs_class     = @hard_reqs_class,
+         nice_to_haves_class = @nice_to_haves_class
+     WHERE id = @id`,
+  )
+
+  const jd = posting.raw_text ?? `${posting.title} at ${posting.company}`
+  try {
+    const response = await client.messages.create({
+      model: MODEL,
+      max_tokens: 256,
+      messages: [
+        {
+          role: 'user',
+          content: buildScoringPrompt(
+            posting.id, posting.title, posting.company, jd, serializedProfile, intent,
+          ),
+        },
+      ],
+    })
+    writeLLMUsage(db, {
+      call_type: 'affinity_scoring',
+      model: MODEL,
+      input_tokens: response.usage.input_tokens,
+      output_tokens: response.usage.output_tokens,
+      posting_id: posting.id,
+    })
+    const raw = response.content.find((b) => b.type === 'text')?.text ?? ''
+    const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
+    const validated = AffinityResultSchema.safeParse(JSON.parse(cleaned))
+    if (!validated.success) throw new Error('schema mismatch')
+    const result = validated.data
+    const score = computeAffinityScore(result.hard_reqs_class, result.nice_to_haves_class)
+    updatePosting.run({
+      score,
+      scored_at: now,
+      id: posting.id,
+      reasoning: result.reasoning,
+      hard_reqs_class: result.hard_reqs_class,
+      nice_to_haves_class: result.nice_to_haves_class,
+    })
+    return {
+      ...posting,
+      affinity_score: score,
+      affinity_scored_at: now,
+      affinity_skipped: false,
+      affinity_reasoning: result.reasoning,
+      hard_reqs_class: result.hard_reqs_class,
+      nice_to_haves_class: result.nice_to_haves_class,
+    }
+  } catch {
+    return posting
+  }
 }

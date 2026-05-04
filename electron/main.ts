@@ -38,6 +38,7 @@ import type { BaseAdapter } from '../core/jobs/adapters/base'
 import type { CrawlController } from '../core/jobs/adapters/base'
 import { runScrape, createCrawlController } from '../core/jobs/aggregator'
 import { getFilteredRankedPostings, getRankedPostings } from '../core/jobs/ranker'
+import { scorePosting, makeSemaphore } from '../core/jobs/scorer'
 import { generateSearchTerms, generateSearchTermsFromProfile } from '../core/jobs/searchTermGen'
 import { writeLLMUsage } from '../core/jobs/llmUsage'
 import { getTrackerPostings, updatePostingStatus, deletePostings } from '../core/tracker/repository'
@@ -105,6 +106,7 @@ const captchaResolvers = new Map<string, () => void>()
  * When the renderer calls jobs:login-resolved, the matching promise unblocks.
  */
 const loginResolvers = new Map<string, () => void>()
+const streamScoringLimit = makeSemaphore(5)
 
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -848,7 +850,15 @@ function registerIpcHandlers(): void {
             captchaResolvers.set(adapterId, resolve)
           })
         },
-        (posting) => { mainWindow?.webContents.send('jobs:posting-committed', posting) },
+        (posting) => {
+          mainWindow?.webContents.send('jobs:posting-committed', posting)
+          const key = getApiKey()
+          if (key) {
+            streamScoringLimit(() => scorePosting(getDb(), key, posting))
+              .then((scored) => mainWindow?.webContents.send('jobs:posting-scored', scored))
+              .catch((err) => logger.error('Streaming scoring failed', err))
+          }
+        },
         controller,
         loginAdapterIds,
         (adapterId) => {

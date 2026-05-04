@@ -60,7 +60,10 @@ export default function JobBoard({ onNavigateToResume }: JobBoardProps): React.R
         const unsubPosting = window.api.onPostingCommitted((posting) => {
             setPostings((prev) => [posting, ...prev])
         })
-        return () => { unsubPosting() }
+        const unsubScored = window.api.onPostingScored((scored) => {
+            setPostings((prev) => prev.map((p) => p.id === scored.id ? scored : p))
+        })
+        return () => { unsubPosting(); unsubScored() }
     }, [loadPostings])
 
     function toggleSelect(id: string): void {

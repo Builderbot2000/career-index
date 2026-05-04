@@ -370,6 +370,7 @@ export interface ElectronAPI {
   // Events
   onScrapingCommitted(cb: () => void): void
   onPostingCommitted(cb: (posting: JobPosting) => void): (() => void)
+  onPostingScored(cb: (posting: JobPosting) => void): (() => void)
   onAffinityUpdated(cb: (postings: JobPosting[]) => void): void
   onAdapterProgress(cb: (p: AdapterProgress) => void): void
   onCaptchaRequired(cb: (req: CaptchaRequest) => void): void
