@@ -1,6 +1,6 @@
 {
   "name": "careeraid",
-  "version": "1.2.6",
+  "version": "1.2.7",
   "description": "Local-first job hunting desktop app",
   "author": "Kevin Tang <kevintang1118@outlook.com>",
   "main": "out/main/index.js",
@@ -73,8 +73,14 @@
     "mac": {
       "category": "public.app-category.productivity",
       "extraResources": [
-        { "from": "bin/typst-darwin-x64", "to": "typst-darwin-x64" },
-        { "from": "bin/typst-darwin-arm64", "to": "typst-darwin-arm64" }
+        {
+          "from": "bin/typst-darwin-x64",
+          "to": "typst-darwin-x64"
+        },
+        {
+          "from": "bin/typst-darwin-arm64",
+          "to": "typst-darwin-arm64"
+        }
       ],
       "target": [
         {
@@ -88,7 +94,10 @@
     },
     "win": {
       "extraResources": [
-        { "from": "bin/typst-win32-x64.exe", "to": "typst.exe" }
+        {
+          "from": "bin/typst-win32-x64.exe",
+          "to": "typst.exe"
+        }
       ],
       "target": [
         {
@@ -107,7 +116,10 @@
     },
     "linux": {
       "extraResources": [
-        { "from": "bin/typst-linux-x64", "to": "typst" }
+        {
+          "from": "bin/typst-linux-x64",
+          "to": "typst"
+        }
       ],
       "target": [
         "AppImage",
