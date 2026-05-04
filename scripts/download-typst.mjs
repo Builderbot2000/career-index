@@ -5,7 +5,7 @@
  * Safe to re-run: skips binaries that already exist.
  */
 
-import { mkdirSync, existsSync, chmodSync, readFileSync, createWriteStream, renameSync, rmSync } from 'fs'
+import { mkdirSync, existsSync, chmodSync, readFileSync, createWriteStream, renameSync, copyFileSync, unlinkSync, rmSync } from 'fs'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { execSync } from 'child_process'
@@ -100,7 +100,13 @@ for (const target of TARGETS) {
     }
 
     const extracted = join(extractDir, target.dir, target.binary)
-    renameSync(extracted, outPath)
+    try {
+      renameSync(extracted, outPath)
+    } catch (err) {
+      if (err.code !== 'EXDEV') throw err
+      copyFileSync(extracted, outPath)
+      unlinkSync(extracted)
+    }
 
     if (target.executable) {
       chmodSync(outPath, 0o755)
