@@ -4,7 +4,7 @@ import { BaseAdapter, type JobPosting, type SearchFilters, type CrawlSignal } fr
 import { extractYoe, extractSeniority, extractTechStack } from '../linkedin'
 
 const SOURCE = 'hnhiring'
-const SCRAPER_VERSION = 'hnhiring-adapter@1'
+const SCRAPER_VERSION = 'hnhiring-adapter@2'
 const BASE_URL = 'https://hnhiring.com'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -18,11 +18,6 @@ export function recencyCutoffDate(recency: 'day' | 'week' | 'month'): string {
     case 'month': d.setMonth(d.getMonth() - 1); break
   }
   return d.toISOString().slice(0, 10)
-}
-
-/** Returns the listing URL for a given month slug (e.g. "april-2026"). */
-export function buildListingUrl(monthSlug: string): string {
-  return `${BASE_URL}/${monthSlug}`
 }
 
 export interface ParsedFirstLine {
@@ -46,38 +41,65 @@ export function parseFirstLine(raw: string): ParsedFirstLine {
   return { company, title, location }
 }
 
-/** Fetches the homepage and returns the current month slug, e.g. "april-2026". */
-async function fetchCurrentMonthSlug(): Promise<string | null> {
-  const response = await fetch(BASE_URL)
-  if (!response.ok) return null
+/**
+ * Converts HN-style relative timestamps to YYYY-MM-DD.
+ * e.g. "about 4 hours ago" → today, "3 days ago" → 3 days before today
+ */
+export function parseRelativeTime(text: string, now: Date = new Date()): string {
+  const s = text.toLowerCase().trim()
+  const d = new Date(now)
 
-  const html = await response.text()
-  const $ = load(html)
+  const minuteMatch = s.match(/(\d+)\s+minute/)
+  const hourMatch   = s.match(/(\d+)\s+hour/)
+  const dayMatch    = s.match(/(\d+)\s+day/)
+  const weekMatch   = s.match(/(\d+)\s+week/)
+  const monthMatch  = s.match(/(\d+)\s+month/)
 
-  let slug: string | null = null
-  $('a[href]').each((_i, el) => {
-    if (slug) return
-    const href = $(el).attr('href') ?? ''
-    const match = href.match(/^\/([a-z]+-\d{4})$/)
-    if (match) slug = match[1]
-  })
+  if (minuteMatch || hourMatch) {
+    // same day — no offset
+  } else if (dayMatch) {
+    d.setDate(d.getDate() - parseInt(dayMatch[1], 10))
+  } else if (weekMatch) {
+    d.setDate(d.getDate() - parseInt(weekMatch[1], 10) * 7)
+  } else if (monthMatch) {
+    d.setMonth(d.getMonth() - parseInt(monthMatch[1], 10))
+  }
+  // fallback: today
 
-  return slug
+  return d.toISOString().slice(0, 10)
 }
 
-/** Parses job postings out of a fetched hnhiring.com month-page HTML string. */
-export function parsePostings(html: string): Omit<JobPosting, 'id'>[] {
+/** Lowercases and slugifies a string for use in a URL fragment. */
+function slugify(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+}
+
+/** Returns true if the posting's text fields contain the search term. */
+function matchesTerm(posting: Omit<JobPosting, 'id'>, term: string): boolean {
+  if (!term) return true
+  const needle = term.toLowerCase()
+  return (
+    (posting.raw_text?.toLowerCase().includes(needle) ?? false) ||
+    posting.title.toLowerCase().includes(needle) ||
+    posting.company.toLowerCase().includes(needle)
+  )
+}
+
+/** Parses all job postings out of an hnhiring month-page HTML string. */
+export function parsePostings(html: string, pageUrl: string): Omit<JobPosting, 'id'>[] {
   const $ = load(html)
   const postings: Omit<JobPosting, 'id'>[] = []
   const fetchedAt = new Date().toISOString()
 
+  // ul.jobs li.job matches both visible and hidden (li.job.hidden) elements —
+  // the "hidden" class is additive so all ~270 jobs are captured.
   $('ul.jobs li.job').each((_i, el) => {
     const userLink = $(el).find('div.user.green > a').first()
     const username = userLink.text().trim()
-    const date     = $(el).find('span.type-info').first().text().trim()
+    const relTime  = $(el).find('span.type-info').first().text().trim()
     const bodyEl   = $(el).find('div.body').first()
 
-    if (!username || !date) return
+    if (!username || !relTime) return
 
     // First text node before the first <p> is the structured summary line.
     const firstLine = bodyEl
@@ -90,13 +112,16 @@ export function parsePostings(html: string): Omit<JobPosting, 'id'>[] {
     const rawText = bodyEl.text().trim()
 
     // Skip job-seeker posts (e.g. "SEEKING | ...")
-    const firstSegment = firstLine.split('|')[0].trim().toUpperCase()
-    if (firstSegment === 'SEEKING') return
+    if (firstLine.split('|')[0].trim().toUpperCase() === 'SEEKING') return
 
     const { company, title, location } = parseFirstLine(firstLine)
     if (!company) return
 
-    // Try to extract resolved_domain from first non-HN external link in body.
+    // Synthetic per-posting URL: opens the bulk month page, fragment is for dedup.
+    const fragment = slugify(`${company}-${title}`)
+    const url = fragment ? `${pageUrl}#${fragment}` : pageUrl
+
+    // Best external domain from first non-HN link in body.
     let resolved_domain: string | null = null
     bodyEl.find('a[href]').each((_j, a) => {
       if (resolved_domain) return
@@ -118,7 +143,7 @@ export function parsePostings(html: string): Omit<JobPosting, 'id'>[] {
 
     postings.push({
       source:              SOURCE,
-      url:                 '',
+      url,
       resolved_domain,
       title:               title || company,
       company,
@@ -127,7 +152,7 @@ export function parsePostings(html: string): Omit<JobPosting, 'id'>[] {
       yoe_max,
       seniority,
       tech_stack,
-      posted_at:           date,
+      posted_at:           parseRelativeTime(relTime),
       applicant_count:     null,
       raw_text:            rawText,
       fetched_at:          fetchedAt,
@@ -168,18 +193,27 @@ export class HNHiringAdapter extends BaseAdapter {
     const maxResults = filters.maxResults ?? 100
     const cutoff     = filters.recency ? recencyCutoffDate(filters.recency) : null
 
-    const slug = await fetchCurrentMonthSlug()
+    // Step 1: homepage to discover the current month slug (e.g. "may-2026").
+    const homeRes = await fetch(BASE_URL)
+    if (!homeRes.ok) return
+    const homeHtml = await homeRes.text()
+    const $home = load(homeHtml)
+
+    let slug: string | null = null
+    $home('a[href]').each((_i, el) => {
+      if (slug) return
+      const href = $home(el).attr('href') ?? ''
+      const m = href.match(/^\/([a-z]+-\d{4})$/)
+      if (m) slug = m[1]
+    })
     if (!slug) return
 
-    const response = await fetch(buildListingUrl(slug))
+    // Step 2: fetch the actual month listing page.
+    const pageUrl = `${BASE_URL}/${slug}`
+    const response = await fetch(pageUrl)
     if (!response.ok) return
-
-    const html     = await response.text()
-    const postings = parsePostings(html)
-
-    const techUrl = term
-      ? `${BASE_URL}/technologies/${encodeURIComponent(term.toLowerCase())}`
-      : `${BASE_URL}/${slug}`
+    const html = await response.text()
+    const postings = parsePostings(html, pageUrl)
 
     let reportedCount = 0
 
@@ -189,10 +223,12 @@ export class HNHiringAdapter extends BaseAdapter {
       // Postings are newest-first; stop as soon as we fall below the cutoff.
       if (cutoff !== null && posting.posted_at !== null && posting.posted_at < cutoff) break
 
+      if (!matchesTerm(posting, term)) continue
+
       await signal?.waitForResume()
       signal?.checkAborted()
 
-      onPosting?.({ ...posting, url: techUrl })
+      onPosting?.(posting)
       reportedCount++
     }
   }
