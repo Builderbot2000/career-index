@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react'
 import type { JobPosting } from '../shared/ipc-types'
 import { StatusBadge } from '../components/StatusBadge'
 import { AffinityBadge } from '../components/AffinityBadge'
+import { AffinityReasonModal } from '../components/AffinityReasonModal'
 import { Pagination } from '../components/Pagination'
 
 const PAGE_SIZE = 20
@@ -76,6 +77,7 @@ export default function JobBoard({ onNavigateToResume }: JobBoardProps): React.R
     const [selected, setSelected] = useState<Set<string>>(new Set())
     const [sortKey, setSortKey] = useState<SortKey | null>(null)
     const [sortDir, setSortDir] = useState<SortDir>('asc')
+    const [affinityModal, setAffinityModal] = useState<JobPosting | null>(null)
     const [tooltip, setTooltip] = useState<{ x: number; y: number; text: string } | null>(null)
     const tooltipTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -303,6 +305,7 @@ export default function JobBoard({ onNavigateToResume }: JobBoardProps): React.R
                                         score={posting.affinity_score}
                                         hardReqsClass={posting.hard_reqs_class}
                                         niceToHavesClass={posting.nice_to_haves_class}
+                                        onClick={posting.hard_reqs_class ? () => setAffinityModal(posting) : undefined}
                                     />
                                 </span>
                             </td>
@@ -369,6 +372,10 @@ export default function JobBoard({ onNavigateToResume }: JobBoardProps): React.R
             </table>
 
             <Pagination page={page} totalPages={totalPages} onPage={(p) => { setPage(p); setSelected(new Set()) }} />
+
+            {affinityModal && (
+                <AffinityReasonModal posting={affinityModal} onClose={() => setAffinityModal(null)} />
+            )}
 
             {tooltip && (
                 <div

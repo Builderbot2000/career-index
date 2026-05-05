@@ -29,10 +29,12 @@ export function AffinityBadge({
   score,
   hardReqsClass,
   niceToHavesClass,
+  onClick,
 }: {
   score: number | null
   hardReqsClass: HardReqsClass | null
   niceToHavesClass: NiceToHavesClass | null
+  onClick?: () => void
 }): React.ReactElement {
   if (!hardReqsClass) {
     return (
@@ -51,6 +53,22 @@ export function AffinityBadge({
   const niceLabel = niceToHavesClass ? niceToHavesClass.replace(/_/g, ' ') : ''
   const scorePct = score !== null ? ` · ${Math.round(score * 100)}%` : ''
   const tooltip = `${LABEL[hardReqsClass]}${niceLabel ? ` · Nice-to-haves: ${niceLabel}` : ''}${scorePct}`
+
+  if (onClick) {
+    return (
+      <button
+        onClick={onClick}
+        title={tooltip}
+        style={{
+          ...baseStyle,
+          background: bg, color: fg,
+          border: 'none', cursor: 'pointer', font: 'inherit',
+        }}
+      >
+        {LABEL[hardReqsClass]}{niceSuffix}
+      </button>
+    )
+  }
 
   return (
     <span style={{ ...baseStyle, background: bg, color: fg }} title={tooltip}>
