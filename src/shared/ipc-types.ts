@@ -65,6 +65,7 @@ export interface Application {
   applied_at: string | null
   notes: string
   name: string | null
+  template_name: string
 }
 
 export interface TailorResumeResult {
