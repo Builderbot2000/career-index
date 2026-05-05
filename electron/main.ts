@@ -129,7 +129,7 @@ function createWindow(): BrowserWindow {
     },
   })
 
-  if (process.env['CAREERAID_TEST'] !== '1') {
+  if (process.env['APP_TEST'] !== '1') {
     win.once('ready-to-show', () => win.show())
   }
 
@@ -269,7 +269,7 @@ async function runStartupValidation(): Promise<{
 
   // In test mode, unlock typst and profile locks (claudeApiKey is left real so
   // the nav lock badge renders correctly in settings tests).
-  if (process.env.CAREERAID_TEST === '1') {
+  if (process.env.APP_TEST === '1') {
     featureLocks.claudeConnectivity = false
     featureLocks.typst = false
     featureLocks.profileEmpty = false
@@ -704,7 +704,7 @@ function registerIpcHandlers(): void {
     try {
       const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=6&addressdetails=1`
       const res = await fetch(url, {
-        headers: { 'User-Agent': 'CareerAid/1.0' },
+        headers: { 'User-Agent': 'CareerIndex/1.0' },
         signal: AbortSignal.timeout(4000),
       })
       if (!res.ok) throw new Error(`Nominatim ${res.status}`)
@@ -980,7 +980,7 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle('backup:create', async () => {
     const { canceled, filePath } = await dialog.showSaveDialog({
-      defaultPath: `careeraid-backup-${new Date().toISOString().slice(0, 10)}.db`,
+      defaultPath: `careerindex-backup-${new Date().toISOString().slice(0, 10)}.db`,
       filters: [{ name: 'SQLite Database', extensions: ['db'] }],
     })
     if (canceled || !filePath) return null
@@ -994,7 +994,7 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle('data:export', async () => {
     const { canceled, filePath } = await dialog.showSaveDialog({
-      defaultPath: `careeraid-export-${new Date().toISOString().slice(0, 10)}.json`,
+      defaultPath: `careerindex-export-${new Date().toISOString().slice(0, 10)}.json`,
       filters: [{ name: 'JSON', extensions: ['json'] }],
     })
     if (canceled || !filePath) return null
@@ -1116,7 +1116,7 @@ if (process.platform === 'linux') {
 
 app.whenReady().then(async () => {
   // In test mode, redirect userData to the directory provided by the test runner.
-  if (process.env.CAREERAID_TEST === '1' && process.env.ELECTRON_USER_DATA) {
+  if (process.env.APP_TEST === '1' && process.env.ELECTRON_USER_DATA) {
     app.setPath('userData', process.env.ELECTRON_USER_DATA)
   }
 
@@ -1151,7 +1151,7 @@ app.whenReady().then(async () => {
   registerIpcHandlers()
 
   // In test mode, override Claude-dependent IPC handlers with deterministic stubs.
-  if (process.env.CAREERAID_TEST === '1') {
+  if (process.env.APP_TEST === '1') {
     const { registerTestStubs } = await import('../tests/stubs-main')
     registerTestStubs()
   }

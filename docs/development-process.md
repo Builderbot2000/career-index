@@ -8,7 +8,7 @@ nav_order: 6
 
 {: .no_toc }
 
-CareerAid is built using an AI-native development loop — a structured workflow that integrates LLM assistance at each phase while keeping human judgment at the decision gates that matter.
+CareerIndex is built using an AI-native development loop — a structured workflow that integrates LLM assistance at each phase while keeping human judgment at the decision gates that matter.
 
 <details open markdown="block">
   <summary>Contents</summary>

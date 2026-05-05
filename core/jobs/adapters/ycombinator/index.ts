@@ -103,7 +103,7 @@ export function titleFromYCUrl(url: string): string | null {
 async function fetchJobText(url: string): Promise<string | null> {
   try {
     const res = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; careeraid-bot/1.0)' },
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; careerindex-bot/1.0)' },
     })
     if (!res.ok) return null
     const html = await res.text()

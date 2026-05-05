@@ -1,4 +1,4 @@
-title: CareerAid
+title: CareerIndex
 description: Local-first desktop app for job search, resume tailoring, and application tracking.
 
 remote_theme: just-the-docs/just-the-docs
@@ -25,11 +25,11 @@ heading_anchors: true
 
 # Aux links shown in top-right
 aux_links:
-  "GitHub": "https://github.com/yourusername/careeraid"
+  "GitHub": "https://github.com/yourusername/careerindex"
 aux_links_new_tab: true
 
 # Footer
-footer_content: "CareerAid — local-first, all data stays on your machine."
+footer_content: "CareerIndex — local-first, all data stays on your machine."
 
 # Collections
 collections:

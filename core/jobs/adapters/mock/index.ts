@@ -5,7 +5,7 @@ const MOD_VERSION = '0.2.0-mock'
 const SOURCE = 'mock'
 
 // 120ms per result in dev; 100ms in test (enough for Pause/Stop interaction tests)
-const CRAWL_DELAY_MS = process.env.CAREERAID_TEST === '1' ? 100 : 120
+const CRAWL_DELAY_MS = process.env.APP_TEST === '1' ? 100 : 120
 
 // How many results to return per crawl (simulates a page of results)
 const RESULTS_PER_CRAWL_MIN = 15
@@ -443,7 +443,7 @@ export class MockAdapter extends BaseAdapter {
     signal?: CrawlSignal,
   ): Promise<void> {
     const now = new Date().toISOString()
-    const isTest = process.env.CAREERAID_TEST === '1'
+    const isTest = process.env.APP_TEST === '1'
     const rawCount = isTest
       ? RESULTS_PER_CRAWL_MIN
       : RESULTS_PER_CRAWL_MIN + Math.floor(Math.random() * (RESULTS_PER_CRAWL_MAX - RESULTS_PER_CRAWL_MIN + 1))

@@ -66,7 +66,7 @@ test.describe('Resume Module', () => {
   })
 
   test('compilation-locked message shows when PDF compiler is not found', async ({ page }) => {
-    // The CAREERAID_TEST environment means typst check may lock compilation.
+    // The APP_TEST environment means typst check may lock compilation.
     // We verify the lock banner exists when typst is absent (common in CI).
     // This test is informational — it passes whether locked or not,
     // but asserts the lock UI exists as a concept in the app.

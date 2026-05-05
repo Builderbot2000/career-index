@@ -6,7 +6,7 @@
  *   - `app`  — the ElectronApplication instance
  *   - `page` — the main BrowserWindow page
  *
- * The CAREERAID_TEST=1 environment variable activates Claude stubs in main.ts
+ * The APP_TEST=1 environment variable activates Claude stubs in main.ts
  * so no real network calls are made.
  */
 
@@ -26,7 +26,7 @@ interface AppFixtures {
 export const test = base.extend<AppFixtures>({
   // eslint-disable-next-line no-empty-pattern
   app: async ({}, use) => {
-    const tmpUserData = fs.mkdtempSync(path.join(os.tmpdir(), 'careeraid-test-'))
+    const tmpUserData = fs.mkdtempSync(path.join(os.tmpdir(), 'careerindex-test-'))
 
     const electronApp = await electron.launch({
       args: [
@@ -34,7 +34,7 @@ export const test = base.extend<AppFixtures>({
         path.join(__dirname, '../../../out/main/index.js'),
       ],
       env: Object.fromEntries(
-        Object.entries({ ...process.env, NODE_ENV: 'test', CAREERAID_TEST: '1', ELECTRON_USER_DATA: tmpUserData })
+        Object.entries({ ...process.env, NODE_ENV: 'test', APP_TEST: '1', ELECTRON_USER_DATA: tmpUserData })
           .filter(([k, v]) => k !== 'ELECTRON_RUN_AS_NODE' && v !== undefined) as [string, string][]
       ),
     })

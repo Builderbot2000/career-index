@@ -1,5 +1,5 @@
 {
-  "name": "careeraid",
+  "name": "careerindex",
   "version": "1.2.8",
   "description": "Local-first job hunting desktop app",
   "author": "Kevin Tang <kevintang1118@outlook.com>",
@@ -52,8 +52,8 @@
     "vitest": "^2.1.9"
   },
   "build": {
-    "appId": "com.careeraid.app",
-    "productName": "CareerAid",
+    "appId": "com.careerindex.app",
+    "productName": "CareerIndex",
     "publish": {
       "provider": "github"
     },

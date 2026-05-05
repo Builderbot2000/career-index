@@ -2,11 +2,11 @@
 layout: default
 title: Home
 nav_order: 1
-description: CareerAid — local-first desktop app for job search, resume tailoring, and application tracking.
+description: CareerIndex — local-first desktop app for job search, resume tailoring, and application tracking.
 permalink: /
 ---
 
-# CareerAid
+# CareerIndex
 
 A local-first desktop application for managing a career profile, generating tailored LaTeX resumes, aggregating job postings, and tracking applications.
 

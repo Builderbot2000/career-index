@@ -9,7 +9,7 @@ has_children: true
 
 {: .no_toc }
 
-CareerAid is a local-first Electron desktop app. All business logic runs in the Electron main process; the renderer (React) communicates exclusively via IPC through a context-bridge preload. SQLite (WAL mode) is the single source of truth for all persistent data.
+CareerIndex is a local-first Electron desktop app. All business logic runs in the Electron main process; the renderer (React) communicates exclusively via IPC through a context-bridge preload. SQLite (WAL mode) is the single source of truth for all persistent data.
 
 <details open markdown="block">
   <summary>Contents</summary>

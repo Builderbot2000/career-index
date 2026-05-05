@@ -78,6 +78,7 @@ export default function JobBoard({ onNavigateToResume }: JobBoardProps): React.R
     const [sortKey, setSortKey] = useState<SortKey | null>(null)
     const [sortDir, setSortDir] = useState<SortDir>('asc')
     const [affinityModal, setAffinityModal] = useState<JobPosting | null>(null)
+    const [lastTouchedId, setLastTouchedId] = useState<string | null>(null)
     const [tooltip, setTooltip] = useState<{ x: number; y: number; text: string } | null>(null)
     const tooltipTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -249,7 +250,7 @@ export default function JobBoard({ onNavigateToResume }: JobBoardProps): React.R
                 </thead>
                 <tbody>
                     {pagePostings.map((posting) => (
-                        <tr key={posting.id} data-testid={`job-row-${posting.id}`} style={{ borderBottom: '1px solid #f3f4f6', background: selected.has(posting.id) ? '#eff6ff' : undefined }}>
+                        <tr key={posting.id} data-testid={`job-row-${posting.id}`} style={{ borderBottom: '1px solid #f3f4f6', background: selected.has(posting.id) ? '#eff6ff' : undefined, outline: posting.id === lastTouchedId ? '2px solid var(--accent)' : undefined }}>
                             <td style={{ padding: '10px 10px 10px 0' }}>
                                 <input
                                     type="checkbox"
@@ -305,7 +306,7 @@ export default function JobBoard({ onNavigateToResume }: JobBoardProps): React.R
                                         score={posting.affinity_score}
                                         hardReqsClass={posting.hard_reqs_class}
                                         niceToHavesClass={posting.nice_to_haves_class}
-                                        onClick={posting.hard_reqs_class ? () => setAffinityModal(posting) : undefined}
+                                        onClick={posting.hard_reqs_class ? () => { setLastTouchedId(posting.id); setAffinityModal(posting) } : undefined}
                                     />
                                 </span>
                             </td>
@@ -314,6 +315,7 @@ export default function JobBoard({ onNavigateToResume }: JobBoardProps): React.R
                                     <select
                                         value={posting.status}
                                         onChange={async (e) => {
+                                            setLastTouchedId(posting.id)
                                             const newStatus = e.target.value as JobPosting['status']
                                             await window.api.updatePostingStatus(posting.id, newStatus).catch(console.error)
                                             setPostings((prev) =>
@@ -329,6 +331,7 @@ export default function JobBoard({ onNavigateToResume }: JobBoardProps): React.R
                                     {NEXT_STATUS[posting.status] && (
                                         <button
                                             onClick={async () => {
+                                                setLastTouchedId(posting.id)
                                                 const next = NEXT_STATUS[posting.status]!
                                                 await window.api.updatePostingStatus(posting.id, next).catch(console.error)
                                                 setPostings((prev) =>
@@ -353,14 +356,14 @@ export default function JobBoard({ onNavigateToResume }: JobBoardProps): React.R
                             >
                                 <button
                                     data-testid={`job-tailor-btn-${posting.id}`}
-                                    onClick={() => handleTailorResume(posting)}
+                                    onClick={() => { setLastTouchedId(posting.id); handleTailorResume(posting) }}
                                     style={{ fontSize: '0.78rem', padding: '4px 10px', cursor: 'pointer', fontWeight: 600 }}
                                 >
                                     Tailor Resume
                                 </button>
                                 <button
                                     data-testid={`job-open-btn-${posting.id}`}
-                                    onClick={() => handleOpen(posting)}
+                                    onClick={() => { setLastTouchedId(posting.id); handleOpen(posting) }}
                                     style={{ fontSize: '0.78rem', padding: '4px 10px', cursor: 'pointer' }}
                                 >
                                     Open ↗

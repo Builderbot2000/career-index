@@ -9,7 +9,7 @@ import type { Settings, SettingKey } from '../src/shared/ipc-types'
 // the settings table — no native addon, no D-Bus dependency.
 
 export function saveApiKey(key: string): void {
-  if (process.env.CAREERAID_TEST === '1' || !safeStorage.isEncryptionAvailable()) {
+  if (process.env.APP_TEST === '1' || !safeStorage.isEncryptionAvailable()) {
     // Test mode or no encryption available — store as plain base64 (no safeStorage)
     getDb()
       .prepare('UPDATE settings SET encrypted_api_key = ? WHERE id = 1')
@@ -36,7 +36,7 @@ export function getApiKey(): string | null {
     // May be plain base64 (test mode / no encryption)
     try {
       const plain = Buffer.from(row.encrypted_api_key, 'base64').toString('utf-8')
-      if (plain.startsWith('sk-ant') || process.env.CAREERAID_TEST === '1') return plain
+      if (plain.startsWith('sk-ant') || process.env.APP_TEST === '1') return plain
     } catch { /* ignore */ }
     return process.env.ANTHROPIC_API_KEY ?? null
   }

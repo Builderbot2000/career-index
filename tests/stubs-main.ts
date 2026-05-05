@@ -1,6 +1,6 @@
 /**
  * Test stubs for IPC handlers that invoke Claude.
- * This module is imported by electron/main.ts when CAREERAID_TEST=1.
+ * This module is imported by electron/main.ts when APP_TEST=1.
  * It replaces Claude-dependent handlers with deterministic fixture responses.
  */
 
@@ -163,7 +163,7 @@ export function registerTestStubs(): void {
   ipcMain.removeHandler('backup:create')
   ipcMain.handle('backup:create', () => {
     const dbPath = path.join(app.getPath('userData'), 'jobhunt.db')
-    const dest = path.join(tmpDir, `careeraid-test-backup-${Date.now()}.db`)
+    const dest = path.join(tmpDir, `careerindex-test-backup-${Date.now()}.db`)
     if (fs.existsSync(dbPath)) fs.copyFileSync(dbPath, dest)
     return dest
   })
@@ -206,7 +206,7 @@ export function registerTestStubs(): void {
       search_terms: db.prepare('SELECT * FROM search_terms').all(),
       ban_list: db.prepare('SELECT * FROM ban_list').all(),
     }
-    const dest = path.join(tmpDir, `careeraid-test-export-${Date.now()}.json`)
+    const dest = path.join(tmpDir, `careerindex-test-export-${Date.now()}.json`)
     fs.writeFileSync(dest, JSON.stringify(payload, null, 2), 'utf-8')
     return dest
   })

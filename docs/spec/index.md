@@ -9,7 +9,7 @@ has_children: true
 
 {: .no_toc }
 
-CareerAid is a local-first desktop application for managing a professional profile, aggregating job postings from multiple sources that match to said profile, and generating tailored LaTeX resumes for application to these postings. All user data lives on the local machine. The only external network calls are to the Anthropic Claude API and to job board sources during a scrape.
+CareerIndex is a local-first desktop application for managing a professional profile, aggregating job postings from multiple sources that match to said profile, and generating tailored LaTeX resumes for application to these postings. All user data lives on the local machine. The only external network calls are to the Anthropic Claude API and to job board sources during a scrape.
 
 ---
 

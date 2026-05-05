@@ -1,5 +1,5 @@
 /**
- * Fixture payloads returned by Claude stub handlers when CAREERAID_TEST=1.
+ * Fixture payloads returned by Claude stub handlers when APP_TEST=1.
  * These are imported by tests/stubs-main.ts which runs inside the main process.
  */
 
