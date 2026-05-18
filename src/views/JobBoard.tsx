@@ -3,6 +3,7 @@ import type { JobPosting } from '../shared/ipc-types'
 import { StatusBadge } from '../components/StatusBadge'
 import { AffinityBadge } from '../components/AffinityBadge'
 import { AffinityReasonModal } from '../components/AffinityReasonModal'
+import { ApplyConfirmModal } from '../components/ApplyConfirmModal'
 import { Pagination } from '../components/Pagination'
 
 const PAGE_SIZE = 20
@@ -78,6 +79,7 @@ export default function JobBoard({ onNavigateToResume }: JobBoardProps): React.R
     const [sortKey, setSortKey] = useState<SortKey | null>(null)
     const [sortDir, setSortDir] = useState<SortDir>('asc')
     const [affinityModal, setAffinityModal] = useState<JobPosting | null>(null)
+    const [confirmApplyPosting, setConfirmApplyPosting] = useState<JobPosting | null>(null)
     const [lastTouchedId, setLastTouchedId] = useState<string | null>(null)
     const [tooltip, setTooltip] = useState<{ x: number; y: number; text: string } | null>(null)
     const tooltipTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -167,6 +169,30 @@ export default function JobBoard({ onNavigateToResume }: JobBoardProps): React.R
             )
         }
         await window.api.openExternal(posting.url).catch(console.error)
+
+        const currentStatus: JobPosting['status'] = posting.status === 'new' ? 'viewed' : posting.status
+        const promptable: JobPosting['status'][] = ['viewed', 'favorited']
+        if (promptable.includes(currentStatus)) {
+            setConfirmApplyPosting({ ...posting, status: currentStatus })
+        }
+    }
+
+    async function handleConfirmApplied(): Promise<void> {
+        const p = confirmApplyPosting
+        if (!p) return
+        setConfirmApplyPosting(null)
+        await window.api.updatePostingStatus(p.id, 'applied').catch(console.error)
+        setPostings((prev) => prev.map((x) => (x.id === p.id ? { ...x, status: 'applied' } : x)))
+    }
+
+    async function handleDeclineApplied(): Promise<void> {
+        const p = confirmApplyPosting
+        if (!p) return
+        setConfirmApplyPosting(null)
+        if (p.status !== 'viewed') {
+            await window.api.updatePostingStatus(p.id, 'viewed').catch(console.error)
+            setPostings((prev) => prev.map((x) => (x.id === p.id ? { ...x, status: 'viewed' } : x)))
+        }
     }
 
     if (loading) return <div style={{ padding: '24px', color: '#6b7280' }}>Loading postings…</div>
@@ -379,6 +405,13 @@ export default function JobBoard({ onNavigateToResume }: JobBoardProps): React.R
             {affinityModal && (
                 <AffinityReasonModal posting={affinityModal} onClose={() => setAffinityModal(null)} />
             )}
+
+            <ApplyConfirmModal
+                posting={confirmApplyPosting}
+                onConfirm={handleConfirmApplied}
+                onDecline={handleDeclineApplied}
+                onClose={() => setConfirmApplyPosting(null)}
+            />
 
             {tooltip && (
                 <div

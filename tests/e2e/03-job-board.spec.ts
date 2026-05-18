@@ -153,6 +153,111 @@ test.describe('Job Board & Ranking Module', () => {
     await firstRow.getByRole('button', { name: /→|viewed/i }).click()
     await expect(statusSelect).toHaveValue('viewed')
   })
+
+  // ─── Apply-confirmation modal after clicking Open ─────────────────────────
+
+  test('clicking Open on a new posting shows the apply-confirmation modal', async ({ page }) => {
+    const firstRow = page.locator('table tbody tr').first()
+    await firstRow.getByRole('button', { name: /Open ↗/i }).click()
+
+    const dialog = page.getByRole('dialog')
+    await expect(dialog).toBeVisible({ timeout: 5_000 })
+    await expect(dialog.getByRole('heading', { name: /Did you apply/i })).toBeVisible()
+    await expect(dialog.getByRole('button', { name: /Yes, I applied/i })).toBeVisible()
+    await expect(dialog.getByRole('button', { name: /No, not yet/i })).toBeVisible()
+  })
+
+  test('apply-confirmation modal displays the posting title and company', async ({ page }) => {
+    const firstRow = page.locator('table tbody tr').first()
+    const company = ((await firstRow.locator('td').nth(1).textContent()) ?? '').trim()
+    const title = ((await firstRow.locator('td').nth(2).textContent()) ?? '').trim()
+
+    await firstRow.getByRole('button', { name: /Open ↗/i }).click()
+
+    const dialog = page.getByRole('dialog')
+    await expect(dialog).toContainText(company)
+    await expect(dialog).toContainText(title)
+  })
+
+  test('clicking "Yes, I applied" sets status to applied', async ({ page }) => {
+    const firstRow = page.locator('table tbody tr').first()
+    const statusSelect = firstRow.locator('select')
+
+    await firstRow.getByRole('button', { name: /Open ↗/i }).click()
+    await page.getByTestId('apply-confirm-yes').click()
+
+    await expect(page.getByRole('dialog')).not.toBeVisible()
+    await expect(statusSelect).toHaveValue('applied')
+  })
+
+  test('clicking "No, not yet" sets status to viewed (not applied)', async ({ page }) => {
+    const firstRow = page.locator('table tbody tr').first()
+    const statusSelect = firstRow.locator('select')
+
+    await firstRow.getByRole('button', { name: /Open ↗/i }).click()
+    await page.getByTestId('apply-confirm-no').click()
+
+    await expect(page.getByRole('dialog')).not.toBeVisible()
+    await expect(statusSelect).toHaveValue('viewed')
+  })
+
+  test('dismissing the modal via Escape leaves status unchanged', async ({ page }) => {
+    const firstRow = page.locator('table tbody tr').first()
+    const statusSelect = firstRow.locator('select')
+
+    // Start from 'favorited' so we can detect an unintended downgrade to 'viewed'
+    await statusSelect.selectOption('favorited')
+    await expect(statusSelect).toHaveValue('favorited')
+
+    await firstRow.getByRole('button', { name: /Open ↗/i }).click()
+    await expect(page.getByRole('dialog')).toBeVisible({ timeout: 5_000 })
+
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('dialog')).not.toBeVisible()
+    await expect(statusSelect).toHaveValue('favorited')
+  })
+
+  test('clicking the backdrop dismisses the modal without changing status', async ({ page }) => {
+    const firstRow = page.locator('table tbody tr').first()
+    const statusSelect = firstRow.locator('select')
+
+    await statusSelect.selectOption('favorited')
+
+    await firstRow.getByRole('button', { name: /Open ↗/i }).click()
+    const dialog = page.getByRole('dialog')
+    await expect(dialog).toBeVisible({ timeout: 5_000 })
+
+    // Click near the top-left corner of the viewport — outside the dialog box
+    await page.mouse.click(5, 5)
+    await expect(dialog).not.toBeVisible()
+    await expect(statusSelect).toHaveValue('favorited')
+  })
+
+  test('opening an already-applied posting does not show the modal', async ({ page }) => {
+    const firstRow = page.locator('table tbody tr').first()
+    const statusSelect = firstRow.locator('select')
+
+    await statusSelect.selectOption('applied')
+    await expect(statusSelect).toHaveValue('applied')
+
+    await firstRow.getByRole('button', { name: /Open ↗/i }).click()
+    // Give the renderer a moment in case the modal would have appeared
+    await page.waitForTimeout(500)
+    await expect(page.getByRole('dialog')).not.toBeVisible()
+    await expect(statusSelect).toHaveValue('applied')
+  })
+
+  test('clicking "No" from a favorited posting downgrades it to viewed', async ({ page }) => {
+    const firstRow = page.locator('table tbody tr').first()
+    const statusSelect = firstRow.locator('select')
+
+    await statusSelect.selectOption('favorited')
+
+    await firstRow.getByRole('button', { name: /Open ↗/i }).click()
+    await page.getByTestId('apply-confirm-no').click()
+
+    await expect(statusSelect).toHaveValue('viewed')
+  })
 })
 
 // ─── Column header sorting ────────────────────────────────────────────────────
