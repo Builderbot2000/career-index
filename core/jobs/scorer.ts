@@ -6,6 +6,7 @@ import { writeLLMUsage } from './llmUsage'
 import { serializeProfile } from '../resume/agent'
 import { getAllEntries, getUserProfile } from '../profile/repository'
 import type { LanguageItem, CitizenshipItem } from '../profile/models'
+import { withQuotaGuard, type QuotaErrorCallback } from '../llm/withQuotaGuard'
 
 const MODEL = 'claude-haiku-4-5'
 
@@ -173,6 +174,7 @@ export async function scorePostings(
   db: Database.Database,
   apiKey: string,
   candidates: JobPosting[],
+  onQuotaError?: QuotaErrorCallback,
 ): Promise<void> {
   if (candidates.length === 0) return
 
@@ -220,24 +222,27 @@ export async function scorePostings(
     let result: AffinityResult
 
     try {
-      const response = await client.messages.create({
-        model: MODEL,
-        max_tokens: 512,
-        messages: [
-          {
-            role: 'user',
-            content: buildScoringPrompt(
-              posting.id,
-              posting.title,
-              posting.company,
-              jd,
-              serializedProfile,
-              intent,
-              candidateFacts,
-            ),
-          },
-        ],
-      })
+      const response = await withQuotaGuard(
+        () => client.messages.create({
+          model: MODEL,
+          max_tokens: 512,
+          messages: [
+            {
+              role: 'user',
+              content: buildScoringPrompt(
+                posting.id,
+                posting.title,
+                posting.company,
+                jd,
+                serializedProfile,
+                intent,
+                candidateFacts,
+              ),
+            },
+          ],
+        }),
+        onQuotaError,
+      )
 
       writeLLMUsage(db, {
         call_type: 'affinity_scoring',
@@ -294,6 +299,7 @@ export async function scorePosting(
   db: Database.Database,
   apiKey: string,
   posting: JobPosting,
+  onQuotaError?: QuotaErrorCallback,
 ): Promise<JobPosting> {
   const intent =
     (db.prepare('SELECT intent FROM search_config WHERE id = 1').get() as { intent: string | null })
@@ -329,18 +335,21 @@ export async function scorePosting(
 
   const jd = posting.raw_text ?? `${posting.title} at ${posting.company}`
   try {
-    const response = await client.messages.create({
-      model: MODEL,
-      max_tokens: 512,
-      messages: [
-        {
-          role: 'user',
-          content: buildScoringPrompt(
-            posting.id, posting.title, posting.company, jd, serializedProfile, intent, candidateFacts,
-          ),
-        },
-      ],
-    })
+    const response = await withQuotaGuard(
+      () => client.messages.create({
+        model: MODEL,
+        max_tokens: 512,
+        messages: [
+          {
+            role: 'user',
+            content: buildScoringPrompt(
+              posting.id, posting.title, posting.company, jd, serializedProfile, intent, candidateFacts,
+            ),
+          },
+        ],
+      }),
+      onQuotaError,
+    )
     writeLLMUsage(db, {
       call_type: 'affinity_scoring',
       model: MODEL,

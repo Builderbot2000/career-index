@@ -2,6 +2,7 @@ import Database from 'better-sqlite3'
 import { rowToPosting } from './adapters/base'
 import type { JobPosting, JobPostingRow } from './adapters/base'
 import { scorePostings } from './scorer'
+import type { QuotaErrorCallback } from '../llm/withQuotaGuard'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -193,6 +194,7 @@ export function getFilteredRankedPostings(db: Database.Database): JobPosting[] {
 export async function getRankedPostings(
   db: Database.Database,
   apiKey: string,
+  onQuotaError?: QuotaErrorCallback,
 ): Promise<JobPosting[]> {
   const rows = db
     .prepare(`SELECT * FROM job_postings WHERE raw_text IS NOT NULL`)
@@ -202,7 +204,7 @@ export async function getRankedPostings(
 
   const needsScoring = filtered.filter((p) => p.affinity_score === null)
   if (needsScoring.length > 0) {
-    await scorePostings(db, apiKey, needsScoring)
+    await scorePostings(db, apiKey, needsScoring, onQuotaError)
     const rescoredIds = [...new Set(needsScoring.map((p) => p.id))]
     const placeholders = rescoredIds.map(() => '?').join(',')
     const freshRows = db

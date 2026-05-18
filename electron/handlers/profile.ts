@@ -18,11 +18,13 @@ import {
 import { importProfileFromResumePdf } from '../../core/profile/resumeImporter'
 import { CreateProfileEntrySchema, UpdateProfileEntrySchema, UserQualificationsSchema } from '../../core/profile/models'
 import { getSettings } from '../settings'
-import type { FeatureLocks } from '../../src/shared/ipc-types'
-import type { BrowserWindow } from 'electron'
+import type { FeatureLocks, ClaudeQuotaLock } from '../../src/shared/ipc-types'
+import type { ClaudeQuotaError } from '../../core/llm/quotaErrors'
 
 export function registerProfileHandlers(
   pushFeatureLocks: (patch: Partial<FeatureLocks>) => void,
+  triggerClaudeQuotaLock: (err: ClaudeQuotaError) => void,
+  getClaudeQuotaLock: () => ClaudeQuotaLock | null,
 ): void {
   ipcMain.handle('profile:get-all', () => getAllEntries(getDb()))
 
@@ -105,13 +107,16 @@ export function registerProfileHandlers(
     })
     if (canceled || !filePaths[0]) return null
 
+    const lock = getClaudeQuotaLock()
+    if (lock) throw new Error(`Claude features locked (${lock.reason}) — clear in Settings`)
+
     const apiKey = getApiKey()
     if (!apiKey) throw new Error('No API key stored — set one in Settings first')
 
     const pdfBuffer = fs.readFileSync(filePaths[0])
     const pdfBase64 = pdfBuffer.toString('base64')
 
-    const result = await importProfileFromResumePdf(apiKey, pdfBase64, getDb())
+    const result = await importProfileFromResumePdf(apiKey, pdfBase64, getDb(), triggerClaudeQuotaLock)
     logger.info('Profile imported from resume PDF', { added: result.added })
 
     if (result.added > 0) {

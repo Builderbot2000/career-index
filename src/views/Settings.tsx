@@ -25,6 +25,7 @@ export default function Settings({ featureLocks }: Props): React.ReactElement {
     const [msg, setMsg] = useState('')
     const [importMode, setImportMode] = useState<'merge' | 'replace'>('merge')
     const [refreshing, setRefreshing] = useState(false)
+    const [clearingQuotaLock, setClearingQuotaLock] = useState(false)
     const [savedGroup, setSavedGroup] = useState<string | null>(null)
 
     useEffect(() => {
@@ -78,6 +79,15 @@ export default function Settings({ featureLocks }: Props): React.ReactElement {
         }
     }
 
+    async function handleClearQuotaLock(): Promise<void> {
+        setClearingQuotaLock(true)
+        try {
+            await window.api.clearClaudeQuotaLock()
+        } finally {
+            setClearingQuotaLock(false)
+        }
+    }
+
     if (!settings || !draft) return <div>Loading settings…</div>
 
     return (
@@ -100,10 +110,38 @@ export default function Settings({ featureLocks }: Props): React.ReactElement {
                 </div>
                 <LockRow label="Claude API key" locked={featureLocks.claudeApiKey} testId="settings-lock-claudeApiKey" />
                 <LockRow label="Claude connectivity" locked={featureLocks.claudeConnectivity} testId="settings-lock-claudeConnectivity" />
+                <LockRow label="Claude quota" locked={featureLocks.claudeQuotaLock !== null} testId="settings-lock-claudeQuotaLock" />
                 <LockRow label="Typst" locked={featureLocks.typst} testId="settings-lock-typst" />
                 <LockRow label="Playwright Chromium" locked={featureLocks.playwrightChromium} testId="settings-lock-playwrightChromium" />
                 <LockRow label="Profile has entries" locked={featureLocks.profileEmpty} testId="settings-lock-profileEmpty" />
             </div>
+
+            {featureLocks.claudeQuotaLock && (
+                <div
+                    data-testid="settings-claude-quota-banner"
+                    className="card"
+                    style={{ borderColor: 'var(--danger, #c0392b)' }}
+                >
+                    <h2 style={{ marginTop: 0, color: 'var(--danger, #c0392b)' }}>
+                        Claude features locked — {featureLocks.claudeQuotaLock.reason.replace('_', ' ')}
+                    </h2>
+                    <p style={{ fontSize: 13, marginBottom: 8 }}>
+                        {featureLocks.claudeQuotaLock.message}
+                    </p>
+                    <p style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 12 }}>
+                        Detected at {new Date(featureLocks.claudeQuotaLock.occurredAt).toLocaleString()}.
+                        All Claude-powered features are disabled until this lock is cleared.
+                    </p>
+                    <button
+                        data-testid="settings-clear-quota-lock-btn"
+                        className="btn btn-primary"
+                        onClick={handleClearQuotaLock}
+                        disabled={clearingQuotaLock}
+                    >
+                        {clearingQuotaLock ? 'Retrying…' : 'Retry Claude Connectivity'}
+                    </button>
+                </div>
+            )}
 
             {/* API key */}
             <div className="card">

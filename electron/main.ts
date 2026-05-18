@@ -8,6 +8,7 @@ import { getDb } from '../db/database'
 import { runMigrations } from '../db/migrations/runner'
 import { getSettings, getApiKeyPresent, getApiKey } from './settings'
 import type { FeatureLocks } from '../src/shared/ipc-types'
+import type { ClaudeQuotaError } from '../core/llm/quotaErrors'
 import { loadAdapters } from '../core/jobs/pluginLoader'
 import type { BaseAdapter } from '../core/jobs/adapters/base'
 import type { CrawlController } from '../core/jobs/adapters/base'
@@ -35,9 +36,28 @@ let mainWindow: BrowserWindow | null = null
 let currentFeatureLocks: FeatureLocks = {
   claudeApiKey: false,
   claudeConnectivity: false,
+  claudeQuotaLock: null,
   typst: false,
   playwrightChromium: false,
   profileEmpty: false,
+}
+
+async function probeClaudeConnectivity(): Promise<boolean> {
+  try {
+    const key = getApiKey()
+    if (!key) return false
+    const { default: Anthropic } = await import('@anthropic-ai/sdk')
+    const client = new Anthropic({ apiKey: key })
+    await Promise.race([
+      client.models.list(),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('timeout')), 5000),
+      ),
+    ])
+    return true
+  } catch {
+    return false
+  }
 }
 
 // ─── Typst binary resolution ──────────────────────────────────────────────────
@@ -213,6 +233,7 @@ async function runStartupValidation(): Promise<{
   const featureLocks: FeatureLocks = {
     claudeApiKey: false,
     claudeConnectivity: false,
+    claudeQuotaLock: null,
     typst: false,
     playwrightChromium: false,
     profileEmpty: false,
@@ -227,23 +248,7 @@ async function runStartupValidation(): Promise<{
 
   // Feature lock: Claude connectivity (skip if no key — claudeApiKey lock already fires)
   if (!featureLocks.claudeApiKey) {
-    try {
-      const key = getApiKey()
-      if (key) {
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const { default: Anthropic } = await import('@anthropic-ai/sdk')
-        const client = new Anthropic({ apiKey: key })
-        await Promise.race([
-          client.models.list(),
-          new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('timeout')), 5000),
-          ),
-        ])
-        featureLocks.claudeConnectivity = false
-      }
-    } catch {
-      featureLocks.claudeConnectivity = true
-    }
+    featureLocks.claudeConnectivity = !(await probeClaudeConnectivity())
   }
 
   // Feature lock: Typst binary
@@ -284,6 +289,17 @@ function registerIpcHandlers(appRoot: string): void {
     currentFeatureLocks = { ...currentFeatureLocks, ...patch }
     mainWindow?.webContents.send('startup:feature-locks', { ...currentFeatureLocks })
   }
+  const triggerClaudeQuotaLock = (err: ClaudeQuotaError): void => {
+    logger.warn('Claude quota lock triggered', { reason: err.reason, raw: err.raw })
+    pushFeatureLocks({
+      claudeQuotaLock: {
+        reason: err.reason,
+        message: err.message,
+        occurredAt: Date.now(),
+      },
+    })
+  }
+  const getClaudeQuotaLock = () => currentFeatureLocks.claudeQuotaLock
 
   ipcMain.handle('startup:refresh-locks', () => {
     pushFeatureLocks({
@@ -292,10 +308,34 @@ function registerIpcHandlers(appRoot: string): void {
     })
   })
 
+  ipcMain.handle('startup:clear-claude-quota-lock', async () => {
+    const ok = await probeClaudeConnectivity()
+    pushFeatureLocks({
+      claudeQuotaLock: null,
+      claudeConnectivity: !ok,
+    })
+  })
+
+  if (process.env.APP_TEST === '1') {
+    ipcMain.handle('test:trigger-claude-quota-lock', (_event, reason: string) => {
+      triggerClaudeQuotaLock({
+        reason: reason as ClaudeQuotaError['reason'],
+        message: `[test] simulated ${reason}`,
+        raw: `[test] ${reason}`,
+      })
+    })
+  }
+
   registerSettingsHandlers(getMainWindow, pushFeatureLocks)
-  registerProfileHandlers(pushFeatureLocks)
-  registerResumeHandlers(resolveTypstBin, () => appRoot, () => app.getPath('userData'))
-  registerSearchHandlers()
+  registerProfileHandlers(pushFeatureLocks, triggerClaudeQuotaLock, getClaudeQuotaLock)
+  registerResumeHandlers(
+    resolveTypstBin,
+    () => appRoot,
+    () => app.getPath('userData'),
+    triggerClaudeQuotaLock,
+    getClaudeQuotaLock,
+  )
+  registerSearchHandlers(triggerClaudeQuotaLock, getClaudeQuotaLock)
   registerJobsHandlers({
     getMainWindow,
     pushFeatureLocks,
@@ -306,6 +346,8 @@ function registerIpcHandlers(appRoot: string): void {
     loginResolvers,
     streamScoringLimit,
     getUserDataPath: () => app.getPath('userData'),
+    triggerClaudeQuotaLock,
+    getClaudeQuotaLock,
   })
   registerTrackerHandlers()
   registerAnalyticsHandlers()

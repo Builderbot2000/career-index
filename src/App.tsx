@@ -9,6 +9,7 @@ import Tracker from './views/Tracker'
 import Analytics from './views/Analytics'
 import { ChromiumInstallModal } from './components/ChromiumInstallModal'
 import { ResumeLockedModal } from './components/ResumeLockedModal'
+import { ClaudeQuotaLockedModal } from './components/ClaudeQuotaLockedModal'
 
 export type ScrapeState = 'idle' | 'running' | 'paused' | 'error'
 
@@ -22,9 +23,9 @@ interface NavItem {
 
 const NAV: NavItem[] = [
     { id: 'profile', label: 'Profile' },
-    { id: 'search', label: 'Search', lockedBy: ['playwrightChromium'] },
-    { id: 'jobs', label: 'Jobs' },
-    { id: 'resume', label: 'Resume', lockedBy: ['typst', 'claudeApiKey', 'profileEmpty'] },
+    { id: 'search', label: 'Search', lockedBy: ['playwrightChromium', 'claudeQuotaLock'] },
+    { id: 'jobs', label: 'Jobs', lockedBy: ['claudeQuotaLock'] },
+    { id: 'resume', label: 'Resume', lockedBy: ['typst', 'claudeApiKey', 'profileEmpty', 'claudeQuotaLock'] },
     { id: 'tracker', label: 'Tracker' },
     { id: 'analytics', label: 'Analytics' },
     { id: 'settings', label: 'Settings' },
@@ -35,6 +36,7 @@ export default function App(): React.ReactElement {
     const [featureLocks, setFeatureLocks] = useState<FeatureLocks>({
         claudeApiKey: false,
         claudeConnectivity: false,
+        claudeQuotaLock: null,
         typst: false,
         playwrightChromium: false,
         profileEmpty: false,
@@ -101,7 +103,7 @@ export default function App(): React.ReactElement {
 
     function isLocked(item: NavItem): boolean {
         if (!item.lockedBy) return false
-        return item.lockedBy.some((k) => featureLocks[k])
+        return item.lockedBy.some((k) => Boolean(featureLocks[k]))
     }
 
     function navigate(id: View, posting?: JobPosting): void {
@@ -166,13 +168,20 @@ export default function App(): React.ReactElement {
                 {view === 'analytics' && <Analytics />}
                 {view === 'settings' && <Settings featureLocks={featureLocks} />}
             </main>
-            {lockedNav === 'search' && (
+            {lockedNav !== null && featureLocks.claudeQuotaLock && (
+                <ClaudeQuotaLockedModal
+                    lock={featureLocks.claudeQuotaLock}
+                    onClose={() => setLockedNav(null)}
+                    onNavigate={(v) => { setLockedNav(null); navigate(v) }}
+                />
+            )}
+            {lockedNav === 'search' && !featureLocks.claudeQuotaLock && (
                 <ChromiumInstallModal
                     onClose={() => setLockedNav(null)}
                     onInstalled={() => { setLockedNav(null); setView('search') }}
                 />
             )}
-            {lockedNav === 'resume' && (
+            {lockedNav === 'resume' && !featureLocks.claudeQuotaLock && (
                 <ResumeLockedModal
                     featureLocks={featureLocks}
                     onClose={() => setLockedNav(null)}

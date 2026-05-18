@@ -3,6 +3,7 @@ import Database from 'better-sqlite3'
 import type { ProfileEntry } from '../../src/shared/ipc-types'
 import { ResumeDataSchema, type ResumeData } from './validator'
 import { writeLLMUsage } from '../jobs/llmUsage'
+import { withQuotaGuard, type QuotaErrorCallback } from '../llm/withQuotaGuard'
 
 // Token cost table (USD per 1M tokens) — stub; wired to llm_usage in Phase 8
 const PRICE_TABLE: Record<string, { input: number; output: number }> = {
@@ -93,6 +94,7 @@ export async function tailorResume(
   templateName: string,
   postingId: string | null = null,
   db: Database.Database | null = null,
+  onQuotaError?: QuotaErrorCallback,
 ): Promise<ResumeData> {
   const client = new Anthropic({ apiKey })
   const prompt = buildPrompt(entries, jobDescription, templateName)
@@ -114,11 +116,14 @@ export async function tailorResume(
       })
     }
 
-    const response = await client.messages.create({
-      model,
-      max_tokens: 4096,
-      messages,
-    })
+    const response = await withQuotaGuard(
+      () => client.messages.create({
+        model,
+        max_tokens: 4096,
+        messages,
+      }),
+      onQuotaError,
+    )
 
     const inputTokens = response.usage.input_tokens
     const outputTokens = response.usage.output_tokens

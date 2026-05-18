@@ -32,6 +32,10 @@ contextBridge.exposeInMainWorld('api', {
     return ipcRenderer.invoke('startup:refresh-locks')
   },
 
+  clearClaudeQuotaLock(): Promise<void> {
+    return ipcRenderer.invoke('startup:clear-claude-quota-lock')
+  },
+
   // ── Settings ───────────────────────────────────────────────────────────────
   getSettings(): Promise<Settings> {
     return ipcRenderer.invoke('settings:get')
@@ -312,3 +316,11 @@ contextBridge.exposeInMainWorld('api', {
     return ipcRenderer.invoke('jobs:login-resolved', adapterId)
   },
 } satisfies ElectronAPI)
+
+if (process.env.APP_TEST === '1') {
+  contextBridge.exposeInMainWorld('testApi', {
+    triggerClaudeQuotaLock(reason: 'rate_limit' | 'credit_balance' | 'overloaded' | 'auth'): Promise<void> {
+      return ipcRenderer.invoke('test:trigger-claude-quota-lock', reason)
+    },
+  })
+}

@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import Database from 'better-sqlite3'
 import { randomUUID } from 'crypto'
 import type { ProfileEntry } from '../../src/shared/ipc-types'
+import { withQuotaGuard, type QuotaErrorCallback } from '../llm/withQuotaGuard'
 
 const DEFAULT_MODEL = 'claude-sonnet-4-5'
 
@@ -62,32 +63,36 @@ export async function importProfileFromResumePdf(
   apiKey: string,
   pdfBase64: string,
   db: Database.Database,
+  onQuotaError?: QuotaErrorCallback,
 ): Promise<ImportResumeResult> {
   const client = new Anthropic({ apiKey })
 
-  const response = await client.messages.create({
-    model: DEFAULT_MODEL,
-    max_tokens: 4096,
-    messages: [
-      {
-        role: 'user',
-        content: [
-          {
-            type: 'document',
-            source: {
-              type: 'base64',
-              media_type: 'application/pdf',
-              data: pdfBase64,
+  const response = await withQuotaGuard(
+    () => client.messages.create({
+      model: DEFAULT_MODEL,
+      max_tokens: 4096,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'document',
+              source: {
+                type: 'base64',
+                media_type: 'application/pdf',
+                data: pdfBase64,
+              },
             },
-          },
-          {
-            type: 'text',
-            text: buildPrompt(),
-          },
-        ],
-      },
-    ],
-  })
+            {
+              type: 'text',
+              text: buildPrompt(),
+            },
+          ],
+        },
+      ],
+    }),
+    onQuotaError,
+  )
 
   const textBlock = response.content.find((b) => b.type === 'text')
   if (!textBlock || textBlock.type !== 'text') {

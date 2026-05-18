@@ -299,11 +299,21 @@ export interface Settings {
 
 export type SettingKey = keyof Settings
 
+export type ClaudeQuotaReason = 'rate_limit' | 'credit_balance' | 'overloaded' | 'auth'
+
+export interface ClaudeQuotaLock {
+  reason: ClaudeQuotaReason
+  message: string
+  occurredAt: number
+}
+
 export interface FeatureLocks {
   /** True = no API key stored → Claude features locked */
   claudeApiKey: boolean
   /** True = API unreachable at startup → Claude features locked */
   claudeConnectivity: boolean
+  /** Non-null = last Claude call hit a quota/auth/overload error → all Claude features locked */
+  claudeQuotaLock: ClaudeQuotaLock | null
   /** True = Typst binary not found → resume compilation locked */
   typst: boolean
   /** True = Playwright Chromium absent → Playwright scrapers locked */
@@ -316,6 +326,7 @@ export interface FeatureLocks {
 export interface ElectronAPI {
   onFeatureLocks(cb: (locks: FeatureLocks) => void): void
   refreshFeatureLocks(): Promise<void>
+  clearClaudeQuotaLock(): Promise<void>
   getSettings(): Promise<Settings>
   updateSetting(key: SettingKey, value: Settings[SettingKey]): Promise<void>
   getApiKeyPresent(): Promise<boolean>

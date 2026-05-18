@@ -9,7 +9,8 @@ import { getFilteredRankedPostings, getRankedPostings } from '../../core/jobs/ra
 import { scorePosting } from '../../core/jobs/scorer'
 import { getUserAdapterDir } from '../../core/jobs/pluginLoader'
 import { updatePostingStatus, deletePostings } from '../../core/tracker/repository'
-import type { BanListEntry, FeatureLocks } from '../../src/shared/ipc-types'
+import type { BanListEntry, FeatureLocks, ClaudeQuotaLock } from '../../src/shared/ipc-types'
+import type { ClaudeQuotaError } from '../../core/llm/quotaErrors'
 import type { PostingStatus } from '../../core/tracker/models'
 import { randomUUID } from 'crypto'
 
@@ -47,6 +48,8 @@ export interface JobsHandlerDeps {
   loginResolvers: Map<string, () => void>
   streamScoringLimit: (fn: () => Promise<unknown>) => Promise<unknown>
   getUserDataPath: () => string
+  triggerClaudeQuotaLock: (err: ClaudeQuotaError) => void
+  getClaudeQuotaLock: () => ClaudeQuotaLock | null
 }
 
 export function registerJobsHandlers(deps: JobsHandlerDeps): void {
@@ -60,6 +63,8 @@ export function registerJobsHandlers(deps: JobsHandlerDeps): void {
     loginResolvers,
     streamScoringLimit,
     getUserDataPath,
+    triggerClaudeQuotaLock,
+    getClaudeQuotaLock,
   } = deps
 
   ipcMain.handle('jobs:list-adapters', () =>
@@ -109,8 +114,8 @@ export function registerJobsHandlers(deps: JobsHandlerDeps): void {
         (posting) => {
           getMainWindow()?.webContents.send('jobs:posting-committed', posting)
           const key = getApiKey()
-          if (key) {
-            streamScoringLimit(() => scorePosting(getDb(), key, posting))
+          if (key && !getClaudeQuotaLock()) {
+            streamScoringLimit(() => scorePosting(getDb(), key, posting, triggerClaudeQuotaLock))
               .then((scored) => getMainWindow()?.webContents.send('jobs:posting-scored', scored))
               .catch((err) => logger.error('Streaming scoring failed', err))
           }
@@ -127,10 +132,10 @@ export function registerJobsHandlers(deps: JobsHandlerDeps): void {
       )
       logger.info('Scrape complete', summary)
       getMainWindow()?.webContents.send('jobs:scrape-committed')
-      if (getApiKeyPresent()) {
+      if (getApiKeyPresent() && !getClaudeQuotaLock()) {
         const key = getApiKey()
         if (key) {
-          getRankedPostings(getDb(), key)
+          getRankedPostings(getDb(), key, triggerClaudeQuotaLock)
             .then((postings) => getMainWindow()?.webContents.send('jobs:affinity-updated', postings))
             .catch((err) => logger.error('Background affinity scoring failed', err))
         }
@@ -168,10 +173,10 @@ export function registerJobsHandlers(deps: JobsHandlerDeps): void {
 
   ipcMain.handle('jobs:get-postings', () => {
     const postings = getFilteredRankedPostings(getDb())
-    if (getApiKeyPresent()) {
+    if (getApiKeyPresent() && !getClaudeQuotaLock()) {
       const key = getApiKey()
       if (key && postings.some((p) => p.affinity_score === null && !p.affinity_skipped)) {
-        getRankedPostings(getDb(), key)
+        getRankedPostings(getDb(), key, triggerClaudeQuotaLock)
           .then((scored) => getMainWindow()?.webContents.send('jobs:affinity-updated', scored))
           .catch((err) => logger.error('Background affinity scoring failed', err))
       }

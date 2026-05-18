@@ -5,6 +5,7 @@ import type { SearchTerm, SearchTermSeniority, Recency, GenConstraints } from '.
 import { writeLLMUsage } from './llmUsage'
 import { getAllEntries } from '../profile/repository'
 import type { ProfileEntry } from '../profile/models'
+import { withQuotaGuard, type QuotaErrorCallback } from '../llm/withQuotaGuard'
 
 const DEFAULT_MODEL = 'claude-sonnet-4-5'
 
@@ -46,14 +47,18 @@ export async function generateSearchTerms(
   apiKey: string,
   intent: string,
   constraints?: GenConstraints,
+  onQuotaError?: QuotaErrorCallback,
 ): Promise<SearchTerm[]> {
   const client = new Anthropic({ apiKey })
 
-  const response = await client.messages.create({
-    model: DEFAULT_MODEL,
-    max_tokens: 1024,
-    messages: [{ role: 'user', content: buildPrompt(intent) }],
-  })
+  const response = await withQuotaGuard(
+    () => client.messages.create({
+      model: DEFAULT_MODEL,
+      max_tokens: 1024,
+      messages: [{ role: 'user', content: buildPrompt(intent) }],
+    }),
+    onQuotaError,
+  )
 
   // Write LLM usage
   writeLLMUsage(db, {
@@ -183,6 +188,7 @@ export async function generateSearchTermsFromProfile(
   db: Database.Database,
   apiKey: string,
   constraints?: GenConstraints,
+  onQuotaError?: QuotaErrorCallback,
 ): Promise<SearchTerm[]> {
   const allEntries = getAllEntries(db)
   const entries = allEntries.filter((e) => e.type === 'experience' || e.type === 'skill')
@@ -192,11 +198,14 @@ export async function generateSearchTermsFromProfile(
 
   const client = new Anthropic({ apiKey })
 
-  const response = await client.messages.create({
-    model: DEFAULT_MODEL,
-    max_tokens: 1024,
-    messages: [{ role: 'user', content: buildPromptFromProfile(entries) }],
-  })
+  const response = await withQuotaGuard(
+    () => client.messages.create({
+      model: DEFAULT_MODEL,
+      max_tokens: 1024,
+      messages: [{ role: 'user', content: buildPromptFromProfile(entries) }],
+    }),
+    onQuotaError,
+  )
 
   writeLLMUsage(db, {
     call_type: 'search_term_gen',

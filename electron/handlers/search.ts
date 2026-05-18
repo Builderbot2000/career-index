@@ -2,10 +2,14 @@ import { ipcMain } from 'electron'
 import { getDb } from '../../db/database'
 import { getApiKey } from '../settings'
 import { generateSearchTerms, generateSearchTermsFromProfile } from '../../core/jobs/searchTermGen'
-import type { SearchTerm, AddSearchTermData, SearchTermSeniority, WorkType, Recency, GenConstraints } from '../../src/shared/ipc-types'
+import type { SearchTerm, AddSearchTermData, SearchTermSeniority, WorkType, Recency, GenConstraints, ClaudeQuotaLock } from '../../src/shared/ipc-types'
+import type { ClaudeQuotaError } from '../../core/llm/quotaErrors'
 import { randomUUID } from 'crypto'
 
-export function registerSearchHandlers(): void {
+export function registerSearchHandlers(
+  triggerClaudeQuotaLock: (err: ClaudeQuotaError) => void,
+  getClaudeQuotaLock: () => ClaudeQuotaLock | null,
+): void {
   ipcMain.handle('search:get-config', () => {
     return (
       getDb()
@@ -55,6 +59,8 @@ export function registerSearchHandlers(): void {
   })
 
   ipcMain.handle('search-terms:generate', async (_event, constraints?: GenConstraints) => {
+    const lock = getClaudeQuotaLock()
+    if (lock) throw new Error(`Claude features locked (${lock.reason}) — clear in Settings`)
     const key = getApiKey()
     if (!key) throw new Error('No API key stored — set one in Settings first')
     const config = getDb()
@@ -62,13 +68,15 @@ export function registerSearchHandlers(): void {
       .get() as { intent: string | null } | undefined
     const intent = config?.intent ?? ''
     if (!intent.trim()) throw new Error('Set a search intent before generating terms')
-    return generateSearchTerms(getDb(), key, intent, constraints)
+    return generateSearchTerms(getDb(), key, intent, constraints, triggerClaudeQuotaLock)
   })
 
   ipcMain.handle('search-terms:generate-from-profile', async (_event, constraints?: GenConstraints) => {
+    const lock = getClaudeQuotaLock()
+    if (lock) throw new Error(`Claude features locked (${lock.reason}) — clear in Settings`)
     const key = getApiKey()
     if (!key) throw new Error('No API key stored — set one in Settings first')
-    return generateSearchTermsFromProfile(getDb(), key, constraints)
+    return generateSearchTermsFromProfile(getDb(), key, constraints, triggerClaudeQuotaLock)
   })
 
   ipcMain.handle(

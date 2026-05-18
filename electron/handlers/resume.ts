@@ -17,12 +17,15 @@ import {
   updateApplicationTexPath,
   renameApplication,
 } from '../../core/resume/repository'
-import type { Application } from '../../src/shared/ipc-types'
+import type { Application, ClaudeQuotaLock } from '../../src/shared/ipc-types'
+import type { ClaudeQuotaError } from '../../core/llm/quotaErrors'
 
 export function registerResumeHandlers(
   resolveTypstBin: () => string,
   getAppRoot: () => string,
   getUserDataPath: () => string,
+  triggerClaudeQuotaLock: (err: ClaudeQuotaError) => void,
+  getClaudeQuotaLock: () => ClaudeQuotaLock | null,
 ): void {
   ipcMain.handle(
     'resume:tailor',
@@ -38,6 +41,9 @@ export function registerResumeHandlers(
       if (typeof templateName !== 'string' || !templateName.trim()) {
         throw new Error('templateName must be a non-empty string')
       }
+
+      const lock = getClaudeQuotaLock()
+      if (lock) throw new Error(`Claude features locked (${lock.reason}) — clear in Settings`)
 
       if (!getApiKeyPresent()) throw new Error('No API key stored — set one in Settings first')
 
@@ -56,6 +62,7 @@ export function registerResumeHandlers(
         templateName,
         postingId ?? null,
         getDb(),
+        triggerClaudeQuotaLock,
       )
 
       const applicationId = crypto.randomUUID()
