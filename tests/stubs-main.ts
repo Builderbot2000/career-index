@@ -216,6 +216,13 @@ export function registerTestStubs(): void {
     return dest
   })
 
+  // ─── External URL stub ─────────────────────────────────────────────────────
+  // Prevent real xdg-open/browser spawn during tests — those processes outlive
+  // Electron's app.quit() and cause "Tearing down 'app' exceeded the test
+  // timeout" failures.
+  ipcMain.removeHandler('shell:open-external')
+  ipcMain.handle('shell:open-external', () => {})
+
   // ─── Archive test helpers ───────────────────────────────────────────────────
   // Tests need to seed archived_at + manipulate fetched_at without restarting the
   // app. These handlers are only registered under APP_TEST=1.

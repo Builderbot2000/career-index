@@ -18,6 +18,7 @@ import sql016 from './016_affinity_classes.sql?raw'
 import sql017 from './017_clear_affinity_skipped.sql?raw'
 import sql018 from './018_applications_template_name.sql?raw'
 import sql019 from './019_user_qualifications.sql?raw'
+import sql020 from './020_qualifications_v2.sql?raw'
 import sql021 from './021_job_postings_archived_at.sql?raw'
 
 interface MigrationRecord {
@@ -44,6 +45,7 @@ const MIGRATIONS: ReadonlyArray<{ filename: string; sql: string }> = [
   { filename: '017_clear_affinity_skipped.sql', sql: sql017 },
   { filename: '018_applications_template_name.sql', sql: sql018 },
   { filename: '019_user_qualifications.sql', sql: sql019 },
+  { filename: '020_qualifications_v2.sql', sql: sql020 },
   { filename: '021_job_postings_archived_at.sql', sql: sql021 },
 ]
 

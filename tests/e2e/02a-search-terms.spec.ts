@@ -117,7 +117,9 @@ test.describe('Search Term Management', () => {
     await page.getByTestId('search-add-max-results').fill('25')
     await page.getByTestId('search-add-btn').click()
 
-    const originalRow = page.locator('li').filter({ hasText: 'backend engineer original' })
+    const originalRow = page.locator('li').filter({
+      has: page.getByText('backend engineer original', { exact: true }),
+    })
     await expect(originalRow).toBeVisible()
     await expect(originalRow.getByText('past week', { exact: true })).toBeVisible()
     await expect(originalRow.getByText('max 25', { exact: true })).toBeVisible()
@@ -126,7 +128,9 @@ test.describe('Search Term Management', () => {
     await originalRow.getByTitle('Duplicate').click()
 
     // A new row with the "(copy)" suffix should appear, carrying the same chips
-    const copyRow = page.locator('li').filter({ hasText: 'backend engineer original (copy)' })
+    const copyRow = page.locator('li').filter({
+      has: page.getByText('backend engineer original (copy)', { exact: true }),
+    })
     await expect(copyRow).toBeVisible()
     await expect(copyRow.getByText('past week', { exact: true })).toBeVisible()
     await expect(copyRow.getByText('max 25', { exact: true })).toBeVisible()
@@ -145,16 +149,26 @@ test.describe('Search Term Management', () => {
     await page.getByTestId('search-add-role').fill('persist after duplicate')
     await page.getByTestId('search-add-btn').click()
 
-    const row = page.locator('li').filter({ hasText: /^persist after duplicate$/ })
+    const row = page.locator('li').filter({
+      has: page.getByText('persist after duplicate', { exact: true }),
+    })
     await expect(row).toBeVisible()
     await row.getByTitle('Duplicate').click()
-    await expect(page.locator('li').filter({ hasText: 'persist after duplicate (copy)' })).toBeVisible()
+    await expect(
+      page.locator('li').filter({
+        has: page.getByText('persist after duplicate (copy)', { exact: true }),
+      }),
+    ).toBeVisible()
 
     // Navigate away and back
     await goTo(page, 'Profile')
     await goTo(page, 'Search')
 
-    await expect(page.locator('li').filter({ hasText: 'persist after duplicate (copy)' })).toBeVisible()
+    await expect(
+      page.locator('li').filter({
+        has: page.getByText('persist after duplicate (copy)', { exact: true }),
+      }),
+    ).toBeVisible()
   })
 
   test('editing a duplicated term renames it without affecting the original', async ({ page }) => {
@@ -163,21 +177,31 @@ test.describe('Search Term Management', () => {
     await page.getByTestId('search-add-role').fill('source term')
     await page.getByTestId('search-add-btn').click()
 
-    const source = page.locator('li').filter({ hasText: /^source term$/ })
+    const source = page.locator('li').filter({
+      has: page.getByText('source term', { exact: true }),
+    })
     await expect(source).toBeVisible()
     await source.getByTitle('Duplicate').click()
 
-    const copyRow = page.locator('li').filter({ hasText: 'source term (copy)' })
+    const copyRow = page.locator('li').filter({
+      has: page.getByText('source term (copy)', { exact: true }),
+    })
     await expect(copyRow).toBeVisible()
 
     await copyRow.getByTitle('Edit').click()
     await page.getByTestId('search-add-role').fill('renamed variant')
     await page.getByTestId('search-add-btn').click()
 
-    await expect(page.locator('li').filter({ hasText: 'renamed variant' })).toBeVisible()
-    await expect(page.locator('li').filter({ hasText: 'source term (copy)' })).not.toBeVisible()
+    await expect(
+      page.locator('li').filter({ has: page.getByText('renamed variant', { exact: true }) }),
+    ).toBeVisible()
+    await expect(
+      page.locator('li').filter({ has: page.getByText('source term (copy)', { exact: true }) }),
+    ).not.toBeVisible()
     // Original untouched
-    await expect(page.locator('li').filter({ hasText: /^source term$/ })).toBeVisible()
+    await expect(
+      page.locator('li').filter({ has: page.getByText('source term', { exact: true }) }),
+    ).toBeVisible()
   })
 
   test('editing a term updates its role text in the list', async ({ page }) => {

@@ -110,7 +110,7 @@ function GeneralSection({
     const addRowStyle: React.CSSProperties = { display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }
 
     return (
-        <div className="card">
+        <div className="card" data-testid="quals-card">
             <div style={{ fontWeight: 600, marginBottom: 4 }}>General</div>
             <div style={{ fontSize: 12, color: 'var(--text-dim, #6b7280)', marginBottom: 16 }}>
                 Authoritative facts fed directly to the job evaluator.
@@ -119,58 +119,84 @@ function GeneralSection({
             {/* Industries */}
             <div style={sectionLabel}>Industries</div>
             {qualsIndustries.map((ind, i) => (
-                <div key={i} style={itemRow}>
+                <div key={i} style={itemRow} data-testid="quals-industry-item">
                     <span style={itemLabel}>{ind}</span>
                     <button style={removeBtn} onClick={() => onRemoveIndustry(i)}>Remove</button>
                 </div>
             ))}
             <div style={addRowStyle}>
-                <select value={industryToAdd} onChange={(e) => setIndustryToAdd(e.target.value)} style={{ flex: 1 }}>
+                <select
+                    data-testid="quals-industry-select"
+                    value={industryToAdd}
+                    onChange={(e) => setIndustryToAdd(e.target.value)}
+                    style={{ flex: 1 }}
+                >
                     {INDUSTRIES.map((ind) => <option key={ind} value={ind}>{ind}</option>)}
                 </select>
-                <button className="btn btn-primary" onClick={addIndustry}>Add</button>
+                <button data-testid="quals-industry-add" className="btn btn-primary" onClick={addIndustry}>Add</button>
             </div>
 
             {/* Languages */}
             <div style={sectionLabel}>Languages</div>
             {qualsLanguages.map((lang, i) => (
-                <div key={i} style={itemRow}>
+                <div key={i} style={itemRow} data-testid="quals-language-item">
                     <span style={itemLabel}>{lang.name} — {lang.proficiency}</span>
                     <button style={removeBtn} onClick={() => onRemoveLanguage(i)}>Remove</button>
                 </div>
             ))}
             <div style={addRowStyle}>
-                <select value={langToAdd} onChange={(e) => setLangToAdd(e.target.value)} style={{ flex: 2 }}>
+                <select
+                    data-testid="quals-language-select"
+                    value={langToAdd}
+                    onChange={(e) => setLangToAdd(e.target.value)}
+                    style={{ flex: 2 }}
+                >
                     {LANGUAGES.map((l) => <option key={l} value={l}>{l}</option>)}
                 </select>
-                <select value={langProfToAdd} onChange={(e) => setLangProfToAdd(e.target.value)} style={{ flex: 2 }}>
+                <select
+                    data-testid="quals-language-proficiency"
+                    value={langProfToAdd}
+                    onChange={(e) => setLangProfToAdd(e.target.value)}
+                    style={{ flex: 2 }}
+                >
                     {LANGUAGE_PROFICIENCIES.map((p) => <option key={p} value={p}>{p}</option>)}
                 </select>
-                <button className="btn btn-primary" onClick={addLanguage}>Add</button>
+                <button data-testid="quals-language-add" className="btn btn-primary" onClick={addLanguage}>Add</button>
             </div>
 
             {/* Citizenship */}
             <div style={sectionLabel}>Citizenship / Work Authorization</div>
             {qualsCitizenship.map((c, i) => (
-                <div key={i} style={itemRow}>
+                <div key={i} style={itemRow} data-testid="quals-citizenship-item">
                     <span style={itemLabel}>{c.country} — {c.status}</span>
                     <button style={removeBtn} onClick={() => onRemoveCitizenship(i)}>Remove</button>
                 </div>
             ))}
             <div style={addRowStyle}>
-                <select value={countryToAdd} onChange={(e) => setCountryToAdd(e.target.value)} style={{ flex: 2 }}>
+                <select
+                    data-testid="quals-citizenship-country"
+                    value={countryToAdd}
+                    onChange={(e) => setCountryToAdd(e.target.value)}
+                    style={{ flex: 2 }}
+                >
                     {COUNTRIES.map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
-                <select value={statusToAdd} onChange={(e) => setStatusToAdd(e.target.value)} style={{ flex: 2 }}>
+                <select
+                    data-testid="quals-citizenship-status"
+                    value={statusToAdd}
+                    onChange={(e) => setStatusToAdd(e.target.value)}
+                    style={{ flex: 2 }}
+                >
                     {CITIZENSHIP_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
                 </select>
-                <button className="btn btn-primary" onClick={addCitizenship}>Add</button>
+                <button data-testid="quals-citizenship-add" className="btn btn-primary" onClick={addCitizenship}>Add</button>
             </div>
 
             {/* Other */}
             <div style={sectionLabel}>Other</div>
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 14 }}>
                 <input
+                    data-testid="quals-drivers-license"
                     type="checkbox"
                     checked={qualsDriversLicense}
                     onChange={(e) => setQualsDriversLicense(e.target.checked)}
@@ -179,7 +205,7 @@ function GeneralSection({
             </label>
 
             <div style={{ marginTop: 20 }}>
-                <button className="btn btn-primary" onClick={onSaveQualifications}>Save General</button>
+                <button data-testid="quals-save" className="btn btn-primary" onClick={onSaveQualifications}>Save General</button>
             </div>
         </div>
     )

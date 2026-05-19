@@ -77,29 +77,46 @@ test.describe('Profile Module', () => {
 
   test('fixed qualifications card is visible on the Profile view', async ({ page }) => {
     await goTo(page, 'Profile')
-    await expect(page.getByText('Fixed Qualifications')).toBeVisible()
-    await expect(page.getByLabel('Industry (for YOE context)')).toBeVisible()
-    await expect(page.getByLabel('Spoken languages')).toBeVisible()
-    await expect(page.getByLabel('Citizenship / visa status')).toBeVisible()
-    await expect(page.getByText("Has driver's licence")).toBeVisible()
+    await page.getByRole('button', { name: 'General', exact: true }).click()
+    const card = page.getByTestId('quals-card')
+    await expect(card).toBeVisible()
+    await expect(card.getByText('Industries', { exact: true })).toBeVisible()
+    await expect(card.getByText('Languages', { exact: true })).toBeVisible()
+    await expect(card.getByText('Citizenship / Work Authorization')).toBeVisible()
+    await expect(card.getByText("Has driver's licence")).toBeVisible()
+    await expect(page.getByTestId('quals-save')).toBeVisible()
   })
 
   test('qualifications are saved and persist after navigating away', async ({ page }) => {
     await goTo(page, 'Profile')
+    await page.getByRole('button', { name: 'General', exact: true }).click()
 
-    await page.getByLabel('Industry (for YOE context)').fill('fintech')
-    await page.getByLabel('Spoken languages').fill('English, French')
-    await page.getByLabel('Citizenship / visa status').fill('EU citizen')
-    await page.getByRole('button', { name: 'Save Qualifications' }).click()
-    await expect(page.getByText(/Qualifications saved/i)).toBeVisible({ timeout: 3_000 })
+    await page.getByTestId('quals-industry-select').selectOption('Biotechnology')
+    await page.getByTestId('quals-industry-add').click()
+
+    await page.getByTestId('quals-language-select').selectOption('French')
+    await page.getByTestId('quals-language-proficiency').selectOption('Professional Working')
+    await page.getByTestId('quals-language-add').click()
+
+    await page.getByTestId('quals-citizenship-country').selectOption('Canada')
+    await page.getByTestId('quals-citizenship-status').selectOption('Citizen')
+    await page.getByTestId('quals-citizenship-add').click()
+
+    await page.getByTestId('quals-drivers-license').check()
+
+    await page.getByTestId('quals-save').click()
+    await expect(page.getByText(/General saved/i)).toBeVisible({ timeout: 3_000 })
 
     // Navigate away and back — the page re-fetches from DB on mount
     await goTo(page, 'Settings')
     await goTo(page, 'Profile')
+    await page.getByRole('button', { name: 'General', exact: true }).click()
 
-    await expect(page.getByLabel('Industry (for YOE context)')).toHaveValue('fintech')
-    await expect(page.getByLabel('Spoken languages')).toHaveValue('English, French')
-    await expect(page.getByLabel('Citizenship / visa status')).toHaveValue('EU citizen')
+    const card = page.getByTestId('quals-card')
+    await expect(card.getByTestId('quals-industry-item').filter({ hasText: 'Biotechnology' })).toBeVisible()
+    await expect(card.getByTestId('quals-language-item').filter({ hasText: 'French — Professional Working' })).toBeVisible()
+    await expect(card.getByTestId('quals-citizenship-item').filter({ hasText: 'Canada — Citizen' })).toBeVisible()
+    await expect(page.getByTestId('quals-drivers-license')).toBeChecked()
   })
 
   test('filters entries by type tag', async ({ page }) => {
