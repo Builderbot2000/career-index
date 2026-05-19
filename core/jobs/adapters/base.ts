@@ -49,6 +49,7 @@ export const JobPostingSchema = z.object({
   salary_min: z.number().int().nullable(),
   salary_max: z.number().int().nullable(),
   company_rating: z.number().nullable(),
+  archived_at: z.string().nullable().optional(),
 })
 
 export type JobPosting = z.infer<typeof JobPostingSchema>
@@ -85,6 +86,7 @@ export interface JobPostingRow {
   salary_max: number | null
   company_rating: number | null
   applied_at?: string | null
+  archived_at?: string | null
 }
 
 export function rowToPosting(row: JobPostingRow): JobPosting {

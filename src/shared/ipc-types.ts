@@ -137,6 +137,7 @@ export interface JobPosting {
   nice_to_haves_class: 'fully_met' | 'partially_met' | 'not_met' | null
   first_response_at: string | null
   last_seen_at: string
+  archived_at: string | null
 }
 
 export interface TrackerPosting extends JobPosting {
@@ -394,6 +395,10 @@ export interface ElectronAPI {
   getPostings(): Promise<JobPosting[]>
   updatePostingStatus(id: string, status: PostingStatus): Promise<void>
   deletePostings(ids: string[]): Promise<void>
+  listArchivedPostings(): Promise<JobPosting[]>
+  getArchivedCount(): Promise<number>
+  unarchivePosting(id: string): Promise<void>
+  deleteAllArchived(): Promise<number>
 
   // Tracker
   getTrackerPostings(): Promise<TrackerPosting[]>

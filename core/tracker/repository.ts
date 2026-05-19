@@ -18,6 +18,7 @@ export function getTrackerPostings(db: Database.Database): TrackerPosting[] {
       `SELECT jp.*
        FROM job_postings jp
        WHERE jp.status NOT IN ('new', 'viewed')
+         AND jp.archived_at IS NULL
        ORDER BY jp.last_seen_at DESC`,
     )
     .all() as TrackerPostingRow[]

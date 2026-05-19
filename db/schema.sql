@@ -130,8 +130,11 @@ CREATE TABLE IF NOT EXISTS job_postings (
   hard_reqs_class     TEXT
     CHECK(hard_reqs_class IN ('overqualified','fully_qualified','minimally_qualified','underqualified')),
   nice_to_haves_class TEXT
-    CHECK(nice_to_haves_class IN ('fully_met','partially_met','not_met'))
+    CHECK(nice_to_haves_class IN ('fully_met','partially_met','not_met')),
+  archived_at         TEXT       -- non-null = hidden from default JobBoard (auto-set by retention sweep)
 );
+
+CREATE INDEX IF NOT EXISTS idx_job_postings_archived_at ON job_postings(archived_at);
 
 -- ─── LLM Usage ────────────────────────────────────────────────────────────────
 

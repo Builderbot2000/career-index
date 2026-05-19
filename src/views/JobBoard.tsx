@@ -83,6 +83,8 @@ export default function JobBoard({ onNavigateToResume }: JobBoardProps): React.R
     const [lastTouchedId, setLastTouchedId] = useState<string | null>(null)
     const [tooltip, setTooltip] = useState<{ x: number; y: number; text: string } | null>(null)
     const tooltipTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const [viewMode, setViewMode] = useState<'active' | 'archived'>('active')
+    const [archivedCount, setArchivedCount] = useState(0)
 
     function handleSort(key: SortKey): void {
         if (sortKey === key) {
@@ -100,32 +102,40 @@ export default function JobBoard({ onNavigateToResume }: JobBoardProps): React.R
 
     const loadPostings = useCallback(async () => {
         try {
-            const data = await window.api.getPostings()
+            const [data, count] = await Promise.all([
+                viewMode === 'archived'
+                    ? window.api.listArchivedPostings()
+                    : window.api.getPostings(),
+                window.api.getArchivedCount(),
+            ])
             setPostings(data)
+            setArchivedCount(count)
             setPage(1)
+            setSelected(new Set())
         } catch (err) {
             setError(err instanceof Error ? err.message : String(err))
         } finally {
             setLoading(false)
         }
-    }, [])
+    }, [viewMode])
 
     useEffect(() => {
         loadPostings()
         window.api.onScrapingCommitted(() => {
             loadPostings()
         })
+        // Live-update events only apply to the active view (newly scraped postings are never archived).
         window.api.onAffinityUpdated((updated) => {
-            setPostings(updated)
+            if (viewMode === 'active') setPostings(updated)
         })
         const unsubPosting = window.api.onPostingCommitted((posting) => {
-            setPostings((prev) => [posting, ...prev])
+            if (viewMode === 'active') setPostings((prev) => [posting, ...prev])
         })
         const unsubScored = window.api.onPostingScored((scored) => {
-            setPostings((prev) => prev.map((p) => p.id === scored.id ? scored : p))
+            if (viewMode === 'active') setPostings((prev) => prev.map((p) => p.id === scored.id ? scored : p))
         })
         return () => { unsubPosting(); unsubScored() }
-    }, [loadPostings])
+    }, [loadPostings, viewMode])
 
     function toggleSelect(id: string): void {
         setSelected((prev) => {
@@ -151,6 +161,24 @@ export default function JobBoard({ onNavigateToResume }: JobBoardProps): React.R
         await window.api.deletePostings(ids)
         setPostings((prev) => prev.filter((p) => !selected.has(p.id)))
         setSelected(new Set())
+        if (viewMode === 'archived') {
+            setArchivedCount((c) => Math.max(0, c - ids.length))
+        }
+    }
+
+    async function handleUnarchive(id: string): Promise<void> {
+        await window.api.unarchivePosting(id).catch(console.error)
+        setPostings((prev) => prev.filter((p) => p.id !== id))
+        setArchivedCount((c) => Math.max(0, c - 1))
+    }
+
+    async function handleDeleteAllArchived(): Promise<void> {
+        if (!window.confirm(`Permanently delete all ${archivedCount} archived posting(s)? This cannot be undone.`)) return
+        const deleted = await window.api.deleteAllArchived()
+        setPostings([])
+        setArchivedCount(0)
+        setSelected(new Set())
+        console.info(`Deleted ${deleted} archived postings`)
     }
 
     function handleTailorResume(posting: JobPosting): void {
@@ -197,12 +225,6 @@ export default function JobBoard({ onNavigateToResume }: JobBoardProps): React.R
 
     if (loading) return <div style={{ padding: '24px', color: '#6b7280' }}>Loading postings…</div>
     if (error) return <div style={{ padding: '24px', color: 'crimson' }}>Error: {error}</div>
-    if (postings.length === 0)
-        return (
-            <div style={{ padding: '24px', color: '#6b7280' }}>
-                No postings yet. Run a scrape from Search Config to populate the board.
-            </div>
-        )
 
     const sorted = sortKey ? [...postings].sort(getComparator(sortKey, sortDir)) : postings
     const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE))
@@ -210,12 +232,13 @@ export default function JobBoard({ onNavigateToResume }: JobBoardProps): React.R
 
     const allPageSelected = pagePostings.length > 0 && pagePostings.every((p) => selected.has(p.id))
     const somePageSelected = pagePostings.some((p) => selected.has(p.id))
+    const isArchived = viewMode === 'archived'
 
     return (
         <div style={{ padding: '24px', overflowY: 'auto', height: '100%', boxSizing: 'border-box' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
                 <h2 style={{ margin: 0 }}>
-                    Jobs{' '}
+                    {isArchived ? 'Archived Jobs' : 'Jobs'}{' '}
                     <span style={{ fontSize: '0.85rem', fontWeight: 400, color: '#6b7280' }}>
                         ({postings.length})
                     </span>
@@ -237,7 +260,48 @@ export default function JobBoard({ onNavigateToResume }: JobBoardProps): React.R
                         Delete ({selected.size})
                     </button>
                 )}
+                <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
+                    {isArchived && archivedCount > 0 && (
+                        <button
+                            onClick={handleDeleteAllArchived}
+                            style={{
+                                fontSize: '0.8rem',
+                                padding: '4px 12px',
+                                cursor: 'pointer',
+                                background: '#dc2626',
+                                color: '#fff',
+                                border: 'none',
+                                borderRadius: '4px',
+                                fontWeight: 600,
+                            }}
+                        >
+                            Delete all archived ({archivedCount})
+                        </button>
+                    )}
+                    <button
+                        onClick={() => setViewMode(isArchived ? 'active' : 'archived')}
+                        style={{
+                            fontSize: '0.8rem',
+                            padding: '4px 12px',
+                            cursor: 'pointer',
+                            background: isArchived ? '#374151' : '#fff',
+                            color: isArchived ? '#fff' : '#374151',
+                            border: '1px solid #d1d5db',
+                            borderRadius: '4px',
+                        }}
+                    >
+                        {isArchived ? 'Show active' : `Show archived (${archivedCount})`}
+                    </button>
+                </div>
             </div>
+
+            {postings.length === 0 && (
+                <div style={{ padding: '24px 0', color: '#6b7280' }}>
+                    {isArchived
+                        ? 'No archived postings.'
+                        : 'No postings yet. Run a scrape from Search Config to populate the board.'}
+                </div>
+            )}
 
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
                 <thead>
@@ -380,20 +444,39 @@ export default function JobBoard({ onNavigateToResume }: JobBoardProps): React.R
                                     gap: '6px',
                                 }}
                             >
-                                <button
-                                    data-testid={`job-tailor-btn-${posting.id}`}
-                                    onClick={() => { setLastTouchedId(posting.id); handleTailorResume(posting) }}
-                                    style={{ fontSize: '0.78rem', padding: '4px 10px', cursor: 'pointer', fontWeight: 600 }}
-                                >
-                                    Tailor Resume
-                                </button>
-                                <button
-                                    data-testid={`job-open-btn-${posting.id}`}
-                                    onClick={() => { setLastTouchedId(posting.id); handleOpen(posting) }}
-                                    style={{ fontSize: '0.78rem', padding: '4px 10px', cursor: 'pointer' }}
-                                >
-                                    Open ↗
-                                </button>
+                                {isArchived ? (
+                                    <>
+                                        <button
+                                            onClick={() => handleUnarchive(posting.id)}
+                                            style={{ fontSize: '0.78rem', padding: '4px 10px', cursor: 'pointer', fontWeight: 600 }}
+                                        >
+                                            Unarchive
+                                        </button>
+                                        <button
+                                            onClick={() => { setLastTouchedId(posting.id); window.api.openExternal(posting.url).catch(console.error) }}
+                                            style={{ fontSize: '0.78rem', padding: '4px 10px', cursor: 'pointer' }}
+                                        >
+                                            Open ↗
+                                        </button>
+                                    </>
+                                ) : (
+                                    <>
+                                        <button
+                                            data-testid={`job-tailor-btn-${posting.id}`}
+                                            onClick={() => { setLastTouchedId(posting.id); handleTailorResume(posting) }}
+                                            style={{ fontSize: '0.78rem', padding: '4px 10px', cursor: 'pointer', fontWeight: 600 }}
+                                        >
+                                            Tailor Resume
+                                        </button>
+                                        <button
+                                            data-testid={`job-open-btn-${posting.id}`}
+                                            onClick={() => { setLastTouchedId(posting.id); handleOpen(posting) }}
+                                            style={{ fontSize: '0.78rem', padding: '4px 10px', cursor: 'pointer' }}
+                                        >
+                                            Open ↗
+                                        </button>
+                                    </>
+                                )}
                             </td>
                         </tr>
                     ))}

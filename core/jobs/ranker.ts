@@ -183,7 +183,7 @@ function rankFiltered(filtered: JobPosting[], weights: Record<string, number>): 
 /** Fast synchronous path — returns postings with cached scores only, no API calls. */
 export function getFilteredRankedPostings(db: Database.Database): JobPosting[] {
   const rows = db
-    .prepare(`SELECT * FROM job_postings WHERE raw_text IS NOT NULL`)
+    .prepare(`SELECT * FROM job_postings WHERE raw_text IS NOT NULL AND archived_at IS NULL`)
     .all() as JobPostingRow[]
   const { config, weights, userYoe } = loadConfig(db)
   const filtered = applyHardFilters(rows.map(rowToPosting), config, userYoe)
@@ -197,7 +197,7 @@ export async function getRankedPostings(
   onQuotaError?: QuotaErrorCallback,
 ): Promise<JobPosting[]> {
   const rows = db
-    .prepare(`SELECT * FROM job_postings WHERE raw_text IS NOT NULL`)
+    .prepare(`SELECT * FROM job_postings WHERE raw_text IS NOT NULL AND archived_at IS NULL`)
     .all() as JobPostingRow[]
   const { config, weights, userYoe } = loadConfig(db)
   const filtered = applyHardFilters(rows.map(rowToPosting), config, userYoe)

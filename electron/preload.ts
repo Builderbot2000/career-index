@@ -228,6 +228,22 @@ contextBridge.exposeInMainWorld('api', {
     return ipcRenderer.invoke('jobs:delete-postings', { ids })
   },
 
+  listArchivedPostings(): Promise<JobPosting[]> {
+    return ipcRenderer.invoke('jobs:list-archived')
+  },
+
+  getArchivedCount(): Promise<number> {
+    return ipcRenderer.invoke('jobs:archived-count')
+  },
+
+  unarchivePosting(id: string): Promise<void> {
+    return ipcRenderer.invoke('jobs:unarchive', { id })
+  },
+
+  deleteAllArchived(): Promise<number> {
+    return ipcRenderer.invoke('jobs:delete-all-archived')
+  },
+
   // ── Tracker ────────────────────────────────────────────────────────────────
   getTrackerPostings() {
     return ipcRenderer.invoke('tracker:get-postings')
@@ -321,6 +337,27 @@ if (process.env.APP_TEST === '1') {
   contextBridge.exposeInMainWorld('testApi', {
     triggerClaudeQuotaLock(reason: 'rate_limit' | 'credit_balance' | 'overloaded' | 'auth'): Promise<void> {
       return ipcRenderer.invoke('test:trigger-claude-quota-lock', reason)
+    },
+    archiveOldest(n: number): Promise<string[]> {
+      return ipcRenderer.invoke('test:archive-oldest', n)
+    },
+    backdatePostings(ids: string[], status: string): Promise<void> {
+      return ipcRenderer.invoke('test:backdate-postings', { ids, status })
+    },
+    runArchiveSweep(retentionDays: number): Promise<number> {
+      return ipcRenderer.invoke('test:run-archive-sweep', retentionDays)
+    },
+    archiveFavorited(): Promise<void> {
+      return ipcRenderer.invoke('test:archive-favorited')
+    },
+    countArchived(): Promise<number> {
+      return ipcRenderer.invoke('test:count-archived')
+    },
+    getAllPostingIds(): Promise<string[]> {
+      return ipcRenderer.invoke('test:get-all-posting-ids')
+    },
+    getRawText(id: string): Promise<string | null> {
+      return ipcRenderer.invoke('test:get-raw-text', id)
     },
   })
 }

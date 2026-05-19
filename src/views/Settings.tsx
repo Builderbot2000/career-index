@@ -221,7 +221,7 @@ export default function Settings({ featureLocks }: Props): React.ReactElement {
                         value={draft.posting_retention_days}
                         onChange={(e) => setDraft((p) => p ? { ...p, posting_retention_days: Number(e.target.value) } : p)}
                     />
-                    <div className="form-hint">Non-favorited postings are soft-deleted after this many days.</div>
+                    <div className="form-hint">New/unviewed postings are auto-archived after this many days. Tracker postings (favorited, applied, interviewing, offer, rejected, ghosted) are kept.</div>
                 </div>
                 <div className="form-row">
                     <label>Parse error abort threshold</label>

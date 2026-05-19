@@ -207,19 +207,23 @@ async function runStartupValidation(): Promise<{
     return { hardBlock: true, reason: `Cannot open database: ${e}` }
   }
 
-  // Retention policy: clear raw_text from stale non-favorited postings
+  // Auto-archive policy: move stale new/viewed postings into the archive
+  // (sets archived_at + nulls raw_text). Tracker-pipeline statuses are protected.
   try {
     const settings = getSettings()
-    const retentionDays = settings.posting_retention_days ?? 60
+    const retentionDays = settings.posting_retention_days ?? 14
     getDb()
       .prepare(
-        `UPDATE job_postings SET raw_text = NULL
-         WHERE status NOT IN ('favorited')
-           AND last_seen_at < date('now', '-' || ? || ' days')`,
+        `UPDATE job_postings
+            SET archived_at = COALESCE(archived_at, datetime('now')),
+                raw_text = NULL
+          WHERE status IN ('new', 'viewed')
+            AND archived_at IS NULL
+            AND fetched_at < date('now', '-' || ? || ' days')`,
       )
       .run(retentionDays)
   } catch (e) {
-    logger.warn('Retention policy failed (non-fatal)', { error: String(e) })
+    logger.warn('Auto-archive sweep failed (non-fatal)', { error: String(e) })
   }
 
   // Apply persisted log level now that settings are readable

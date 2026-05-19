@@ -216,6 +216,70 @@ export function registerTestStubs(): void {
     return dest
   })
 
+  // ─── Archive test helpers ───────────────────────────────────────────────────
+  // Tests need to seed archived_at + manipulate fetched_at without restarting the
+  // app. These handlers are only registered under APP_TEST=1.
+
+  ipcMain.handle('test:archive-oldest', (_event, n: number) => {
+    const db = getDb()
+    const rows = db
+      .prepare(`SELECT id FROM job_postings ORDER BY fetched_at ASC LIMIT ?`)
+      .all(n) as { id: string }[]
+    const stmt = db.prepare(`UPDATE job_postings SET archived_at = datetime('now') WHERE id = ?`)
+    for (const r of rows) stmt.run(r.id)
+    return rows.map((r) => r.id)
+  })
+
+  ipcMain.handle(
+    'test:backdate-postings',
+    (_event, { ids, status }: { ids: string[]; status: string }) => {
+      const db = getDb()
+      const stmt = db.prepare(
+        `UPDATE job_postings SET fetched_at = datetime('now', '-365 days'), status = ? WHERE id = ?`,
+      )
+      for (const id of ids) stmt.run(status, id)
+    },
+  )
+
+  ipcMain.handle('test:run-archive-sweep', (_event, retentionDays: number) => {
+    const result = getDb()
+      .prepare(
+        `UPDATE job_postings
+            SET archived_at = COALESCE(archived_at, datetime('now')),
+                raw_text = NULL
+          WHERE status IN ('new', 'viewed')
+            AND archived_at IS NULL
+            AND fetched_at < date('now', '-' || ? || ' days')`,
+      )
+      .run(retentionDays)
+    return result.changes
+  })
+
+  ipcMain.handle('test:archive-favorited', () => {
+    getDb()
+      .prepare(`UPDATE job_postings SET archived_at = datetime('now') WHERE status = 'favorited'`)
+      .run()
+  })
+
+  ipcMain.handle('test:count-archived', () => {
+    const row = getDb()
+      .prepare(`SELECT COUNT(*) AS n FROM job_postings WHERE archived_at IS NOT NULL`)
+      .get() as { n: number }
+    return row.n
+  })
+
+  ipcMain.handle('test:get-all-posting-ids', () => {
+    const rows = getDb().prepare(`SELECT id FROM job_postings`).all() as { id: string }[]
+    return rows.map((r) => r.id)
+  })
+
+  ipcMain.handle('test:get-raw-text', (_event, id: string) => {
+    const row = getDb()
+      .prepare(`SELECT raw_text FROM job_postings WHERE id = ?`)
+      .get(id) as { raw_text: string | null } | undefined
+    return row?.raw_text ?? null
+  })
+
   // ─── Resume PDF import stub ─────────────────────────────────────────────────
   // Bypass file dialog + Claude call; insert deterministic fixture entries.
   ipcMain.removeHandler('profile:import-resume-pdf')

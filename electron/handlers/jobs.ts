@@ -9,6 +9,7 @@ import { getFilteredRankedPostings, getRankedPostings } from '../../core/jobs/ra
 import { scorePosting } from '../../core/jobs/scorer'
 import { getUserAdapterDir } from '../../core/jobs/pluginLoader'
 import { updatePostingStatus, deletePostings } from '../../core/tracker/repository'
+import { rowToPosting, type JobPostingRow } from '../../core/jobs/adapters/base'
 import type { BanListEntry, FeatureLocks, ClaudeQuotaLock } from '../../src/shared/ipc-types'
 import type { ClaudeQuotaError } from '../../core/llm/quotaErrors'
 import type { PostingStatus } from '../../core/tracker/models'
@@ -190,6 +191,34 @@ export function registerJobsHandlers(deps: JobsHandlerDeps): void {
 
   ipcMain.handle('jobs:delete-postings', (_event, { ids }: { ids: string[] }) => {
     deletePostings(getDb(), ids)
+  })
+
+  // ─── Archive ────────────────────────────────────────────────────────────────
+
+  ipcMain.handle('jobs:list-archived', () => {
+    const rows = getDb()
+      .prepare(`SELECT * FROM job_postings WHERE archived_at IS NOT NULL ORDER BY archived_at DESC`)
+      .all() as JobPostingRow[]
+    return rows.map(rowToPosting)
+  })
+
+  ipcMain.handle('jobs:archived-count', () => {
+    const row = getDb()
+      .prepare(`SELECT COUNT(*) AS n FROM job_postings WHERE archived_at IS NOT NULL`)
+      .get() as { n: number }
+    return row.n
+  })
+
+  ipcMain.handle('jobs:unarchive', (_event, { id }: { id: string }) => {
+    getDb().prepare(`UPDATE job_postings SET archived_at = NULL WHERE id = ?`).run(id)
+  })
+
+  ipcMain.handle('jobs:delete-all-archived', () => {
+    const result = getDb()
+      .prepare(`DELETE FROM job_postings WHERE archived_at IS NOT NULL`)
+      .run()
+    logger.info('Deleted archived postings', { count: result.changes })
+    return result.changes
   })
 
   // ─── Ban List ───────────────────────────────────────────────────────────────
